@@ -3,7 +3,7 @@
 A single-page, keyboard-friendly nested todo list with a weekly and daily
 commitment layer, carry-over pressure, three daily nudges, and a roadmap.
 
-Status: **spec agreed, not yet built.**
+Status: **Pass 1 built (`index.html`). Pass 2 not started.**
 Date: 2026-08-11
 
 ---
@@ -138,11 +138,24 @@ Keyboard-first, mouse for reordering.
 | Indent (make it a child of the item above) | `Tab` |
 | Outdent | `Shift` + `Tab` |
 | Move item up / down among siblings | `Alt` + `↑` / `↓` |
-| Toggle done | `Ctrl` + `Enter`, or click the item's text |
+| Move the cursor between items | `↑` / `↓` |
+| Toggle done | `Ctrl` + `Enter`, or the circle at the left of the row |
 | Open / shut the drawer | click the bullet |
-| Reorder freely, including across parents | click and drag the handle |
-| Pull into Week / Today | drag onto the target list, or `W` / `T` on the focused item |
-| Cancel edit | `Esc` |
+| Reorder, including across parents | drag the handle — top/bottom edge of a row inserts as a sibling, the middle makes it a child |
+| Pull into Today | drag onto the Today pane, or `Alt` + `T` |
+| Set a due date | `Alt` + `D`, or the `due` button on the row |
+| Delete an empty item | `Backspace` |
+
+Three points where the build had to differ from the first draft of this
+section, for reasons that only became clear once it existed:
+
+- **`Alt+T` / `Alt+D`, not bare `T` / `D`.** An item's title is a live text
+  field, so a bare letter would just type into it.
+- **Done is the circle on the left, not a click on the text.** Clicking the
+  text has to place the caret for editing. The circle is unambiguous.
+- **`Enter` on an item whose drawer is open and has children creates its first
+  child**, not a sibling — the standard outliner behaviour, and what the hand
+  expects. Otherwise `Enter` creates a sibling below.
 
 Indenting an item takes its descendants with it. Deleting is only available from
 a right-click menu, with a confirm — the whole point of this list is that things
@@ -277,10 +290,14 @@ What that means concretely: clearing browser data, resetting the browser
 profile, or switching browser wipes the list **and its history**, with no
 recovery.
 
-Two cheap mitigations, both included because they cost almost nothing:
+Three cheap mitigations, all included because they cost almost nothing:
 
-- An **Export JSON** button. Commit the file to this repo whenever you care.
-- An automatic export prompt if the last export is more than 30 days old.
+- An **Export** button — downloads the whole state as JSON. Commit the file to
+  this repo whenever you care.
+- An **Import** button. Not in the first draft of this spec, and added because an
+  export you cannot restore from is not a backup.
+- A prompt on open if the last export is more than 30 days old, or if there has
+  never been one.
 
 `localStorage` gives ~5MB. At ~40 active items plus history this is not a
 constraint for many years.
@@ -289,14 +306,21 @@ constraint for many years.
 
 Both passes are agreed. Pass 1 ships and gets used before Pass 2 starts.
 
-**Pass 1 — the daily habit**
-- Big List: unlimited nesting, drawers, drag-reorder, fast keyboard entry
-- Today List with breadcrumb context and descendant pull-in
-- Rollover prompt, carry counter, green→red escalation, the `×5` warning
-- Three in-page reminders + `reminders.ics`
-- Due dates on items
-- History panel
-- Export JSON
+**Pass 1 — the daily habit** — *built, in `index.html`*
+- [x] Big List: unlimited nesting, drawers, drag-reorder, fast keyboard entry
+- [x] Today List with breadcrumb context and descendant pull-in
+- [x] Rollover prompt, carry counter, green→red escalation, the `×5` warning
+- [x] Three in-page reminders + `reminders.ics`
+- [x] Due dates on items
+- [x] History panel
+- [x] Export / Import JSON
+
+Verified by driving the real page in Chromium: 44 checks covering four-level
+nesting, indent/outdent, drawers, descendant pull-in, later-child inheritance,
+cross-pane completion, the open-children confirm, due dates, reload
+persistence, the rollover prompt including the `×5` hard stop, `.ics` structure
+(3 events, weekday `RRULE`, `VTIMEZONE`, `VALARM`, CRLF), backup round-trip,
+keyboard shortcuts, and drag-to-reparent.
 
 **Pass 2 — the planning layer**
 - Week List with ETA hours

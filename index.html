@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todo</title>
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzNiNmVhNSIvPjxwYXRoIGQ9Ik05IDE2LjVsNSA1IDktMTEiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIzLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==">
+<style>
+:root{
+  --bg:#f7f7f5; --panel:#fff; --ink:#1e1e1c; --muted:#7d7d76; --faint:#b6b6ae;
+  --line:#e3e3dd; --accent:#3b6ea5; --accent-soft:#eaf1f8;
+  --warn:#a5432f; --warn-soft:#fbeeea; --done:#9a9a92;
+  --radius:6px; --row:28px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+input{font:inherit;color:inherit}
+
+/* ---------- header ---------- */
+header{
+  position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;
+  padding:9px 18px;background:rgba(247,247,245,.93);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.date{font-weight:600;letter-spacing:.01em}
+.date span{font-weight:400;color:var(--muted)}
+.spacer{flex:1}
+.hbtn{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:4px 10px;color:var(--muted);white-space:nowrap;
+}
+.hbtn:hover{color:var(--ink);border-color:var(--faint)}
+.hbtn.on{background:var(--accent-soft);border-color:#c3d7ea;color:var(--accent)}
+
+/* ---------- banner ---------- */
+#banner{display:none;padding:10px 18px;background:var(--accent-soft);border-bottom:1px solid #c3d7ea;
+  color:#274a6d;align-items:center;gap:12px}
+#banner.show{display:flex}
+#banner b{font-weight:600}
+#banner .x{margin-left:auto;background:none;border:0;color:#5c7fa3;font-size:16px;line-height:1}
+
+/* ---------- layout ---------- */
+main{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:18px;
+  padding:18px;align-items:start;max-width:1500px;margin:0 auto}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px 18px}
+.pane > h2{
+  margin:0 0 2px;font-size:11px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--faint)
+}
+.pane .sub{margin:0 0 12px;font-size:12px;color:var(--muted)}
+#todayPane{position:sticky;top:52px}
+#todayPane.dragover{border-color:var(--accent);background:var(--accent-soft)}
+.empty{color:var(--faint);font-size:13px;padding:10px 0 4px;font-style:italic}
+
+/* ---------- rows ---------- */
+.rows{margin:0;padding:0}
+.row{display:flex;align-items:center;gap:2px;height:var(--row);position:relative;border-radius:4px}
+.row:hover{background:#fafaf8}
+.row.dz-before{box-shadow:inset 0 2px 0 var(--accent)}
+.row.dz-after{box-shadow:inset 0 -2px 0 var(--accent)}
+.row.dz-child{background:var(--accent-soft);box-shadow:inset 2px 0 0 var(--accent)}
+.row.dragging{opacity:.35}
+
+.handle{width:12px;height:100%;flex:0 0 12px;cursor:grab;color:transparent;
+  display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:-1px}
+.row:hover .handle{color:var(--faint)}
+.chk{width:18px;height:18px;flex:0 0 18px;border:1.5px solid var(--faint);border-radius:50%;
+  background:none;padding:0;display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:transparent;margin-right:4px}
+.chk:hover{border-color:var(--accent)}
+.chk.done{background:var(--done);border-color:var(--done);color:#fff}
+.fold{width:16px;height:16px;flex:0 0 16px;border:0;background:none;padding:0;
+  color:var(--faint);font-size:9px;line-height:1}
+.fold:hover{color:var(--ink)}
+.fold.leaf{color:var(--line);cursor:default}
+.title{flex:1;min-width:0;border:0;background:none;padding:2px 4px;border-radius:3px;outline:none}
+.title:focus{background:var(--accent-soft)}
+.row.done .title{color:var(--done);text-decoration:line-through}
+.row.done .bc{text-decoration:none}
+
+.badge{flex:0 0 auto;font-size:10px;font-weight:700;padding:1px 5px;border-radius:9px;
+  color:#fff;letter-spacing:.02em}
+.due{flex:0 0 auto;font-size:11px;color:var(--muted);padding:1px 5px;border-radius:3px;
+  background:#f2f2ee;white-space:nowrap}
+.due.over{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.dueinput{flex:0 0 auto;width:120px;font-size:11px;border:1px solid var(--line);
+  border-radius:3px;padding:1px 3px;background:#fff}
+.act{flex:0 0 auto;border:0;background:none;color:transparent;font-size:11px;padding:1px 5px;
+  border-radius:3px;white-space:nowrap}
+.row:hover .act{color:var(--muted)}
+.act:hover{background:#f0f0ec;color:var(--ink)!important}
+.act.in{color:var(--accent)!important;font-weight:600}
+.bc{font-size:11px;color:var(--faint);flex:0 0 auto;max-width:42%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.nag{font-size:11px;color:var(--warn);background:var(--warn-soft);border-radius:3px;
+  padding:1px 6px;flex:0 0 auto}
+
+.group{margin-bottom:10px}
+.group + .group{border-top:1px solid #f0f0ec;padding-top:8px}
+
+/* ---------- history ---------- */
+#hist{max-width:1500px;margin:0 auto 30px;padding:0 18px}
+#hist details{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:0 16px}
+#hist summary{cursor:pointer;padding:11px 0;font-size:11px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--faint);outline:none}
+#hist summary:hover{color:var(--muted)}
+#hist .day{padding:2px 0 10px}
+#hist .day h4{margin:8px 0 3px;font-size:12px;color:var(--muted);font-weight:600}
+#hist .hrow{display:flex;gap:8px;font-size:13px;color:var(--done);padding:1px 0}
+#hist .hrow .t{color:var(--faint);font-size:11px;flex:0 0 38px}
+#hist .hrow .n{text-decoration:line-through}
+
+/* ---------- modal ---------- */
+.scrim{position:fixed;inset:0;background:rgba(30,30,28,.34);z-index:90;
+  display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px}
+.modal{background:var(--panel);border-radius:10px;max-width:640px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.22);padding:20px 22px 16px;max-height:78vh;overflow:auto}
+.modal h3{margin:0 0 3px;font-size:16px}
+.modal p.lead{margin:0 0 16px;color:var(--muted);font-size:13px}
+.ro{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #f0f0ec;flex-wrap:wrap}
+.ro .name{flex:1;min-width:150px}
+.ro .name small{display:block;color:var(--faint);font-size:11px}
+.mbtn{background:#f4f4f0;border:1px solid var(--line);border-radius:var(--radius);padding:3px 9px;
+  font-size:12px;color:var(--muted)}
+.mbtn:hover{background:#eaeae4;color:var(--ink)}
+.mbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.mbtn.primary:hover{background:#315f90;color:#fff}
+.mbtn.danger:hover{background:var(--warn-soft);color:var(--warn);border-color:#e8c9c1}
+.modal footer{display:flex;gap:8px;align-items:center;padding-top:14px;margin-top:6px;
+  border-top:1px solid #f0f0ec}
+.blocked{background:var(--warn-soft);border-radius:5px;padding:7px 9px;margin:6px 0 0;
+  font-size:12px;color:var(--warn);width:100%}
+.help{max-width:1500px;margin:0 auto 40px;padding:0 18px;color:var(--faint);font-size:12px}
+.help code{background:#eeeee9;border-radius:3px;padding:1px 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="date" id="hdrDate"></div>
+  <div class="spacer"></div>
+  <button class="hbtn" id="btnNotif"></button>
+  <button class="hbtn" id="btnIcs" title="Three recurring weekday events for Outlook">Reminders .ics</button>
+  <button class="hbtn" id="btnExport" title="Download a backup of everything">Export</button>
+  <button class="hbtn" id="btnImport" title="Restore from a backup file">Import</button>
+  <input type="file" id="fileInput" accept="application/json,.json" hidden>
+</header>
+
+<div id="banner"><span id="bannerText"></span><button class="x" id="bannerX">&times;</button></div>
+
+<main>
+  <section class="pane" id="outlinePane">
+    <h2>Big list</h2>
+    <p class="sub">Everything. Click a bullet to shut the drawer. <code>Tab</code> to indent.</p>
+    <div class="rows" id="outline"></div>
+  </section>
+
+  <section class="pane" id="todayPane">
+    <h2>Today</h2>
+    <p class="sub" id="todaySub"></p>
+    <div class="rows" id="today"></div>
+  </section>
+</main>
+
+<div id="hist">
+  <details id="histDetails">
+    <summary id="histSummary">History</summary>
+    <div id="histBody"></div>
+  </details>
+</div>
+
+<p class="help">
+  <code>Enter</code> new item ·
+  <code>Tab</code>/<code>Shift+Tab</code> indent ·
+  <code>Alt+↑↓</code> move ·
+  <code>Alt+T</code> to/from Today ·
+  <code>Alt+D</code> due date ·
+  <code>Ctrl+Enter</code> done ·
+  <code>Backspace</code> on an empty item deletes it ·
+  drag the handle to reorder or re-parent
+</p>
+
+<script>
+'use strict';
+
+/* ============================================================
+   Constants
+   ============================================================ */
+const KEY = 'todo.v1';
+const REMINDERS = [
+  {key:'morning',    h:9,  m:0,  label:'Todo — morning',      job:'Roll over what is left, then build the Today list.'},
+  {key:'afterlunch', h:13, m:30, label:'Todo — after lunch',  job:'What is still open? Re-order the afternoon.'},
+  {key:'eod',        h:17, m:0,  label:'Todo — end of day',   job:'Strike off what is done, note anything for tomorrow.'}
+];
+const MAX_CARRIES = 5;          // hard warning at this many
+const EXPORT_NAG_DAYS = 30;
+
+/* ============================================================
+   Dates
+   ============================================================ */
+const pad = n => String(n).padStart(2,'0');
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayStr = () => isoDate(new Date());
+
+function isoWeek(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dow = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dow);
+  const jan1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const wk = Math.ceil(((d - jan1) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${pad(wk)}`;
+}
+function prettyDate(str){
+  const [y,m,dd] = str.split('-').map(Number);
+  return new Date(y, m-1, dd).toLocaleDateString(undefined,
+    {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+function shortDate(str){
+  const [y,m,dd] = str.split('-').map(Number);
+  return new Date(y, m-1, dd).toLocaleDateString(undefined, {day:'numeric', month:'short'});
+}
+function daysBetween(a, b){
+  return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000);
+}
+const isWeekend = d => d.getDay() === 0 || d.getDay() === 6;
+
+/* ============================================================
+   State
+   ============================================================ */
+function fresh(){
+  return {
+    version: 1,
+    items: [],
+    meta: {lastOpenedAt:null, remindersFiredOn:{}, rolloverDoneFor:null, lastExportAt:null}
+  };
+}
+let S = fresh();
+let uidSeq = 0;
+function uid(){
+  uidSeq++;
+  return Date.now().toString(36) + '-' + uidSeq.toString(36);
+}
+
+function load(){
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); } catch(e){ /* storage blocked */ }
+  if(!raw) return fresh();
+  try {
+    const p = JSON.parse(raw);
+    const s = fresh();
+    s.items = Array.isArray(p.items) ? p.items.map(normalise) : [];
+    Object.assign(s.meta, p.meta || {});
+    return s;
+  } catch(e){
+    console.error('Could not read saved data', e);
+    alert('The saved list could not be read. Starting empty — your old data is still in browser storage, so do not clear it if you want it recovered.');
+    return fresh();
+  }
+}
+function normalise(o){
+  return {
+    id: o.id || uid(),
+    parentId: o.parentId ?? null,
+    order: typeof o.order === 'number' ? o.order : 0,
+    title: typeof o.title === 'string' ? o.title : '',
+    collapsed: !!o.collapsed,
+    due: o.due || null,
+    week: o.week || null,
+    day: o.day || null,
+    etaHours: typeof o.etaHours === 'number' ? o.etaHours : null,
+    doneAt: o.doneAt || null,
+    carries: typeof o.carries === 'number' ? o.carries : 0,
+    createdAt: o.createdAt || new Date().toISOString()
+  };
+}
+let saveTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch(e){ banner('<b>Could not save.</b> Browser storage is full or blocked — export a backup now.'); }
+  }, 120);
+}
+
+/* ============================================================
+   Tree
+   ============================================================ */
+const byId = id => S.items.find(i => i.id === id) || null;
+const childrenOf = pid =>
+  S.items.filter(i => i.parentId === pid).sort((a,b) => a.order - b.order);
+
+function descendantsOf(id, out){
+  out = out || [];
+  for(const c of childrenOf(id)){ out.push(c); descendantsOf(c.id, out); }
+  return out;
+}
+function ancestorsOf(id){
+  const out = [];
+  let it = byId(id);
+  while(it && it.parentId){ const p = byId(it.parentId); if(!p) break; out.unshift(p); it = p; }
+  return out;
+}
+function renumber(pid){
+  childrenOf(pid).forEach((c,i) => { c.order = i; });
+}
+function subtreeContains(rootId, id){
+  if(rootId === id) return true;
+  return descendantsOf(rootId).some(d => d.id === id);
+}
+const hasOpenDescendant = id => descendantsOf(id).some(d => !d.doneAt);
+
+/* An item leaves the live outline once it is done, the day it was done has
+   passed, and nothing open remains beneath it. Until then it stays visible,
+   struck through, so you can see what you got through. */
+function isArchived(it){
+  if(!it.doneAt) return false;
+  if(isoDate(new Date(it.doneAt)) === todayStr()) return false;
+  return !hasOpenDescendant(it.id);
+}
+
+/* ============================================================
+   Mutations
+   ============================================================ */
+function addItem(parentId, afterId, inheritFrom){
+  const it = normalise({id:uid(), parentId, title:''});
+  const sibs = childrenOf(parentId);
+  it.order = afterId ? (byId(afterId).order + 0.5) : sibs.length;
+  S.items.push(it);
+  renumber(parentId);
+  const src = inheritFrom !== undefined ? inheritFrom : parentId;
+  const p = src ? byId(src) : null;
+  if(p && p.day === todayStr() && !p.doneAt){ it.day = p.day; it.week = p.week; }
+  save();
+  return it;
+}
+function removeItem(id){
+  const kill = new Set([id, ...descendantsOf(id).map(d => d.id)]);
+  const pid = byId(id).parentId;
+  S.items = S.items.filter(i => !kill.has(i.id));
+  renumber(pid);
+  save();
+}
+function indent(id){
+  const it = byId(id);
+  const sibs = childrenOf(it.parentId);
+  const i = sibs.findIndex(s => s.id === id);
+  if(i <= 0) return false;
+  const np = sibs[i-1];
+  it.parentId = np.id;
+  it.order = childrenOf(np.id).length;
+  np.collapsed = false;
+  renumber(np.id);
+  if(np.day === todayStr() && !np.doneAt) setDay(it.id, np.day);
+  save();
+  return true;
+}
+function outdent(id){
+  const it = byId(id);
+  if(!it.parentId) return false;
+  const p = byId(it.parentId);
+  const oldPid = it.parentId;
+  it.parentId = p.parentId;
+  it.order = p.order + 0.5;
+  renumber(oldPid);
+  renumber(it.parentId);
+  save();
+  return true;
+}
+function move(id, dir){
+  const it = byId(id);
+  const sibs = childrenOf(it.parentId);
+  const i = sibs.findIndex(s => s.id === id);
+  const j = i + dir;
+  if(j < 0 || j >= sibs.length) return false;
+  const t = sibs[j].order; sibs[j].order = it.order; it.order = t;
+  save();
+  return true;
+}
+function reparent(dragId, targetId, where){
+  if(subtreeContains(dragId, targetId)) return false;   // no dropping into own subtree
+  const it = byId(dragId), tgt = byId(targetId);
+  if(!it || !tgt) return false;
+  const oldPid = it.parentId;
+  if(where === 'child'){
+    it.parentId = tgt.id;
+    it.order = childrenOf(tgt.id).length;
+    tgt.collapsed = false;
+  } else {
+    it.parentId = tgt.parentId;
+    it.order = tgt.order + (where === 'after' ? 0.5 : -0.5);
+  }
+  renumber(oldPid);
+  renumber(it.parentId);
+  const host = byId(it.parentId);
+  if(host && host.day === todayStr() && !host.doneAt) setDay(it.id, host.day);
+  save();
+  return true;
+}
+
+/* Today membership: the item plus everything under it. */
+function setDay(id, day){
+  const it = byId(id);
+  const targets = [it, ...descendantsOf(id)];
+  const wk = day ? isoWeek(new Date(day + 'T00:00:00')) : null;
+  targets.forEach(t => { t.day = day; t.week = wk; });
+  save();
+}
+function clearDay(id){
+  const it = byId(id);
+  [it, ...descendantsOf(id)].forEach(t => { t.day = null; t.week = null; });
+  save();
+}
+async function toggleDone(id){
+  const it = byId(id);
+  if(it.doneAt){ it.doneAt = null; save(); render(); return; }
+  const open = descendantsOf(id).filter(d => !d.doneAt);
+  if(open.length){
+    const choice = await modalChoice(
+      'Sub-items still open',
+      `“${it.title || 'Untitled'}” has ${open.length} sub-item${open.length>1?'s':''} that ${open.length>1?'are':'is'} not done.`,
+      [{id:'all', label:`Strike ${open.length>1?'those too':'that too'}`, cls:'primary'},
+       {id:'leave', label:'Leave them open'},
+       {id:'cancel', label:'Cancel'}]
+    );
+    if(choice === 'cancel' || choice === null) return;
+    const now = new Date().toISOString();
+    if(choice === 'all') open.forEach(d => { d.doneAt = now; });
+  }
+  it.doneAt = new Date().toISOString();
+  save();
+  render();
+}
+
+/* ============================================================
+   Escalation colour: green at x1 through red at x5
+   ============================================================ */
+function carryColour(n){
+  const t = Math.min(n, MAX_CARRIES) / MAX_CARRIES;
+  return `hsl(${Math.round(122 - 122*t)} 58% ${Math.round(42 - 4*t)}%)`;
+}
+
+/* ============================================================
+   Render
+   ============================================================ */
+let focusKey = null, focusCaret = null;
+
+function captureFocus(){
+  const a = document.activeElement;
+  if(a && a.classList && a.classList.contains('title')){
+    focusKey = a.dataset.key;
+    focusCaret = a.selectionStart;
+  } else { focusKey = null; focusCaret = null; }
+}
+function restoreFocus(){
+  if(!focusKey) return;
+  const el = document.querySelector(`.title[data-key="${CSS.escape(focusKey)}"]`);
+  if(el){
+    el.focus();
+    if(focusCaret != null){
+      const p = Math.min(focusCaret, el.value.length);
+      try { el.setSelectionRange(p, p); } catch(e){}
+    }
+  }
+}
+
+function el(tag, cls, txt){
+  const n = document.createElement(tag);
+  if(cls) n.className = cls;
+  if(txt != null) n.textContent = txt;
+  return n;
+}
+
+/* One row. pane is 'o' (outline) or 't' (today). */
+function rowEl(it, pane, depth, showBreadcrumb){
+  const row = el('div', 'row' + (it.doneAt ? ' done' : ''));
+  row.dataset.id = it.id;
+  row.style.paddingLeft = (depth * 20) + 'px';
+
+  const handle = el('span', 'handle', '⠿');
+  handle.draggable = true;
+  handle.addEventListener('dragstart', e => {
+    dragId = it.id;
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', it.id);
+  });
+  handle.addEventListener('dragend', () => {
+    dragId = null;
+    row.classList.remove('dragging');
+    clearDropMarks();
+  });
+  row.appendChild(handle);
+
+  const chk = el('button', 'chk' + (it.doneAt ? ' done' : ''), it.doneAt ? '✓' : '');
+  chk.title = it.doneAt ? 'Mark not done' : 'Mark done';
+  chk.addEventListener('click', () => toggleDone(it.id));
+  row.appendChild(chk);
+
+  const kids = childrenOf(it.id).filter(c => !isArchived(c));
+  const fold = el('button', 'fold' + (kids.length ? '' : ' leaf'),
+                  kids.length ? (it.collapsed ? '▶' : '▼') : '•');
+  if(kids.length){
+    fold.title = it.collapsed ? 'Open drawer' : 'Shut drawer';
+    fold.addEventListener('click', () => { it.collapsed = !it.collapsed; save(); render(); });
+  }
+  row.appendChild(fold);
+
+  if(showBreadcrumb){
+    const anc = ancestorsOf(it.id);
+    if(anc.length){
+      const bc = el('span', 'bc', anc.map(a => a.title || '…').join(' › ') + ' ›');
+      bc.title = anc.map(a => a.title || '…').join(' › ');
+      row.appendChild(bc);
+    }
+  }
+
+  const input = el('input', 'title');
+  input.type = 'text';
+  input.value = it.title;
+  input.placeholder = 'Untitled';
+  input.dataset.key = pane + ':' + it.id;
+  input.dataset.id = it.id;
+  input.addEventListener('input', () => {
+    it.title = input.value;
+    document.querySelectorAll(`.title[data-id="${CSS.escape(it.id)}"]`)
+      .forEach(o => { if(o !== input) o.value = input.value; });
+    save();
+  });
+  input.addEventListener('keydown', e => onKey(e, it, pane));
+  row.appendChild(input);
+
+  if(it.carries > 0 && !it.doneAt){
+    const b = el('span', 'badge', '×' + it.carries);
+    b.style.background = carryColour(it.carries);
+    b.title = `Carried over ${it.carries} time${it.carries>1?'s':''}`;
+    row.appendChild(b);
+  }
+  if(it.carries >= MAX_CARRIES && !it.doneAt){
+    row.appendChild(el('span', 'nag', 'break it down, date it, or drop it'));
+  }
+
+  if(it.due){
+    const overdue = it.due < todayStr() && !it.doneAt;
+    const d = el('span', 'due' + (overdue ? ' over' : ''),
+                 (overdue ? 'overdue ' : 'due ') + shortDate(it.due));
+    d.title = 'Due ' + prettyDate(it.due) + ' — click to change';
+    d.addEventListener('click', () => openDue(it, row));
+    row.appendChild(d);
+  }
+
+  const inToday = it.day === todayStr();
+  const t = el('button', 'act' + (inToday && pane === 'o' ? ' in' : ''),
+               pane === 't' ? 'take out' : inToday ? 'in today' : '→ today');
+  t.title = inToday ? 'Take out of Today' : 'Put in Today (sub-items come too)';
+  t.addEventListener('click', () => {
+    if(inToday) clearDay(it.id); else setDay(it.id, todayStr());
+    render();
+  });
+  row.appendChild(t);
+
+  if(pane === 'o' && !it.due){
+    const dbtn = el('button', 'act', 'due');
+    dbtn.title = 'Set a due date';
+    dbtn.addEventListener('click', () => openDue(it, row));
+    row.appendChild(dbtn);
+  }
+  if(pane === 'o'){
+    const del = el('button', 'act', '×');
+    del.title = 'Delete this item and everything under it';
+    del.addEventListener('click', async () => {
+      const n = descendantsOf(it.id).length;
+      const ok = await modalChoice('Delete?',
+        `“${it.title || 'Untitled'}”${n ? ` and its ${n} sub-item${n>1?'s':''}` : ''} will be gone for good.`,
+        [{id:'yes', label:'Delete', cls:'danger'}, {id:'no', label:'Keep it', cls:'primary'}]);
+      if(ok === 'yes'){ removeItem(it.id); render(); }
+    });
+    row.appendChild(del);
+  }
+
+  /* drop zones */
+  row.addEventListener('dragover', e => {
+    if(!dragId || dragId === it.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = row.getBoundingClientRect();
+    const f = (e.clientY - r.top) / r.height;
+    const where = f < 0.28 ? 'before' : f > 0.72 ? 'after' : 'child';
+    clearDropMarks();
+    row.classList.add('dz-' + where);
+    row.dataset.where = where;
+  });
+  row.addEventListener('dragleave', () => {
+    row.classList.remove('dz-before','dz-after','dz-child');
+  });
+  row.addEventListener('drop', e => {
+    if(!dragId || dragId === it.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const where = row.dataset.where || 'after';
+    clearDropMarks();
+    if(reparent(dragId, it.id, where)) render();
+    dragId = null;
+  });
+
+  return row;
+}
+
+let dragId = null;
+function clearDropMarks(){
+  document.querySelectorAll('.dz-before,.dz-after,.dz-child')
+    .forEach(n => n.classList.remove('dz-before','dz-after','dz-child'));
+}
+
+function openDue(it, row){
+  const inp = el('input', 'dueinput');
+  inp.type = 'date';
+  inp.value = it.due || todayStr();
+  row.appendChild(inp);
+  inp.focus();
+  const commit = () => { it.due = inp.value || null; save(); render(); };
+  inp.addEventListener('change', commit);
+  inp.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); commit(); }
+    if(e.key === 'Escape'){ e.preventDefault(); render(); }
+  });
+  inp.addEventListener('blur', () => setTimeout(commit, 0));
+}
+
+function renderOutline(){
+  const host = document.getElementById('outline');
+  host.textContent = '';
+  const walk = (pid, depth) => {
+    for(const it of childrenOf(pid)){
+      if(isArchived(it)) continue;
+      host.appendChild(rowEl(it, 'o', depth, false));
+      if(!it.collapsed) walk(it.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  if(!host.children.length){
+    const e = el('div', 'empty', 'Nothing here yet — click to start your first item.');
+    e.addEventListener('click', () => { const n = addItem(null, null); render(); focusItem(n.id, 'o'); });
+    host.appendChild(e);
+  }
+}
+
+function renderToday(){
+  const host = document.getElementById('today');
+  host.textContent = '';
+  const td = todayStr();
+  const members = S.items.filter(i => i.day === td);
+
+  /* Roots of the committed subtrees: members whose parent is not a member. */
+  const roots = members.filter(i => !i.parentId || !members.some(m => m.id === i.parentId));
+  roots.sort((a,b) => (b.carries - a.carries) || (a.order - b.order));
+
+  for(const r of roots){
+    const g = el('div', 'group');
+    g.appendChild(rowEl(r, 't', 0, true));
+    const walk = (pid, depth) => {
+      for(const c of childrenOf(pid)){
+        if(c.day !== td) continue;
+        g.appendChild(rowEl(c, 't', depth, false));
+        walk(c.id, depth + 1);
+      }
+    };
+    walk(r.id, 1);
+    host.appendChild(g);
+  }
+
+  const open = members.filter(i => !i.doneAt).length;
+  const done = members.filter(i => i.doneAt).length;
+  document.getElementById('todaySub').textContent = members.length
+    ? `${open} open · ${done} done — drag anything here, or Alt+T`
+    : 'Drag items across from the big list, or press Alt+T on one.';
+  if(!members.length){
+    host.appendChild(el('div', 'empty', 'Empty. Pull in what you are actually doing today.'));
+  }
+}
+
+function renderHistory(){
+  const done = S.items.filter(i => i.doneAt)
+    .sort((a,b) => b.doneAt.localeCompare(a.doneAt));
+  document.getElementById('histSummary').textContent =
+    done.length ? `History — ${done.length} finished` : 'History — nothing yet';
+  const host = document.getElementById('histBody');
+  host.textContent = '';
+  const groups = new Map();
+  for(const it of done){
+    const d = isoDate(new Date(it.doneAt));
+    if(!groups.has(d)) groups.set(d, []);
+    groups.get(d).push(it);
+  }
+  for(const [d, list] of groups){
+    const box = el('div', 'day');
+    const label = d === todayStr() ? 'Today' : prettyDate(d);
+    box.appendChild(el('h4', null, `${label} — ${list.length}`));
+    for(const it of list){
+      const r = el('div', 'hrow');
+      r.appendChild(el('span', 't',
+        new Date(it.doneAt).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})));
+      const anc = ancestorsOf(it.id).map(a => a.title || '…').join(' › ');
+      const n = el('span', 'n', (anc ? anc + ' › ' : '') + (it.title || 'Untitled'));
+      r.appendChild(n);
+      box.appendChild(r);
+    }
+    host.appendChild(box);
+  }
+}
+
+function render(){
+  captureFocus();
+  renderOutline();
+  renderToday();
+  renderHistory();
+  document.getElementById('hdrDate').innerHTML =
+    `Todo <span>· ${prettyDate(todayStr())}</span>`;
+  restoreFocus();
+}
+
+function focusItem(id, pane){
+  const el2 = document.querySelector(`.title[data-key="${CSS.escape(pane + ':' + id)}"]`)
+           || document.querySelector(`.title[data-id="${CSS.escape(id)}"]`);
+  if(el2){ el2.focus(); el2.setSelectionRange(el2.value.length, el2.value.length); }
+}
+
+/* ============================================================
+   Keyboard
+   ============================================================ */
+function onKey(e, it, pane){
+  const k = e.key;
+
+  if(k === 'Enter' && (e.ctrlKey || e.metaKey)){
+    e.preventDefault(); toggleDone(it.id); return;
+  }
+  if(k === 'Enter'){
+    e.preventDefault();
+    /* New item as a sibling below — unless the drawer is open, in which case
+       the natural next line is its first child. */
+    const kids = childrenOf(it.id).filter(c => !isArchived(c));
+    let n;
+    if(kids.length && !it.collapsed) n = addItem(it.id, null);
+    else n = addItem(it.parentId, it.id, it.parentId || it.id);
+    if(!n.day && it.day === todayStr() && !it.doneAt) setDay(n.id, it.day);
+    render(); focusItem(n.id, pane); return;
+  }
+  if(k === 'Tab'){
+    e.preventDefault();
+    if(e.shiftKey ? outdent(it.id) : indent(it.id)){ render(); focusItem(it.id, pane); }
+    return;
+  }
+  if(e.altKey && (k === 'ArrowUp' || k === 'ArrowDown')){
+    e.preventDefault();
+    if(move(it.id, k === 'ArrowUp' ? -1 : 1)){ render(); focusItem(it.id, pane); }
+    return;
+  }
+  if(e.altKey && (k === 't' || k === 'T')){
+    e.preventDefault();
+    if(it.day === todayStr()) clearDay(it.id); else setDay(it.id, todayStr());
+    render(); focusItem(it.id, pane); return;
+  }
+  if(e.altKey && (k === 'd' || k === 'D')){
+    e.preventDefault();
+    const row = document.querySelector(`.title[data-key="${CSS.escape(pane+':'+it.id)}"]`)
+      ?.closest('.row');
+    if(row) openDue(it, row);
+    return;
+  }
+  if(k === 'Backspace' && it.title === '' && descendantsOf(it.id).length === 0){
+    e.preventDefault();
+    const sibs = childrenOf(it.parentId);
+    const i = sibs.findIndex(s => s.id === it.id);
+    const prev = i > 0 ? sibs[i-1] : (it.parentId ? byId(it.parentId) : null);
+    removeItem(it.id);
+    render();
+    if(prev) focusItem(prev.id, pane);
+    return;
+  }
+  if(k === 'ArrowUp' || k === 'ArrowDown'){
+    const all = [...document.querySelectorAll(`.title[data-key^="${pane}:"]`)];
+    const i = all.findIndex(n => n.dataset.id === it.id);
+    const n = all[i + (k === 'ArrowUp' ? -1 : 1)];
+    if(n){ e.preventDefault(); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+    return;
+  }
+}
+
+/* ============================================================
+   Modal helper
+   ============================================================ */
+function modalChoice(title, lead, buttons){
+  return new Promise(resolve => {
+    const scrim = el('div', 'scrim');
+    const m = el('div', 'modal');
+    m.appendChild(el('h3', null, title));
+    if(lead) m.appendChild(el('p', 'lead', lead));
+    const foot = document.createElement('footer');
+    for(const b of buttons){
+      const btn = el('button', 'mbtn' + (b.cls ? ' ' + b.cls : ''), b.label);
+      btn.addEventListener('click', () => { scrim.remove(); resolve(b.id); });
+      foot.appendChild(btn);
+    }
+    m.appendChild(foot);
+    scrim.appendChild(m);
+    scrim.addEventListener('click', e => {
+      if(e.target === scrim){ scrim.remove(); resolve(null); }
+    });
+    document.body.appendChild(scrim);
+    const f = foot.querySelector('.mbtn');
+    if(f) f.focus();
+  });
+}
+
+/* ============================================================
+   Rollover — the morning prompt
+   ============================================================ */
+function overdueItems(){
+  const td = todayStr();
+  return S.items.filter(i => i.day && i.day < td && !i.doneAt);
+}
+
+function openRollover(){
+  const items = overdueItems();
+  if(!items.length){ S.meta.rolloverDoneFor = todayStr(); save(); return; }
+
+  const scrim = el('div', 'scrim');
+  const m = el('div', 'modal');
+  m.appendChild(el('h3', null,
+    `${items.length} item${items.length>1?'s':''} left from before`));
+  m.appendChild(el('p', 'lead',
+    'Nothing rolls over on its own. Decide each one. Pushing it out still counts as a carry.'));
+
+  const rows = [];
+  for(const it of items){
+    const ro = el('div', 'ro');
+    const nm = el('div', 'name');
+    const anc = ancestorsOf(it.id).map(a => a.title || '…').join(' › ');
+    nm.appendChild(el('span', null, it.title || 'Untitled'));
+    const meta = [];
+    meta.push(`was ${shortDate(it.day)} — ${daysBetween(it.day, todayStr())}d ago`);
+    if(it.carries) meta.push(`carried ×${it.carries}`);
+    if(it.due) meta.push(`due ${shortDate(it.due)}`);
+    nm.appendChild(el('small', null, (anc ? anc + ' · ' : '') + meta.join(' · ')));
+    ro.appendChild(nm);
+
+    const blocked = it.carries >= MAX_CARRIES;
+
+    if(!blocked){
+      const keep = el('button', 'mbtn primary', 'Keep today');
+      keep.addEventListener('click', () => {
+        it.carries++; setDay(it.id, todayStr()); ro.remove(); done(); });
+      ro.appendChild(keep);
+    }
+
+    const push = el('button', 'mbtn', 'Push to…');
+    push.addEventListener('click', () => {
+      const d = el('input', 'dueinput');
+      d.type = 'date';
+      d.min = todayStr();
+      d.value = todayStr();
+      push.replaceWith(d);
+      d.focus();
+      const go = () => {
+        if(!d.value) return;
+        it.carries++; setDay(it.id, d.value); ro.remove(); done();
+      };
+      d.addEventListener('change', go);
+      d.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); go(); } });
+    });
+    ro.appendChild(push);
+
+    if(blocked){
+      const brk = el('button', 'mbtn', 'Break it down');
+      brk.addEventListener('click', () => {
+        clearDay(it.id);
+        it.collapsed = false;
+        const kid = addItem(it.id, null, null);
+        ro.remove(); done();
+        focusItem(kid.id, 'o');
+      });
+      ro.appendChild(brk);
+    }
+
+    const drop = el('button', 'mbtn danger', 'Drop');
+    drop.title = 'Back to the big list only. The carry count stays on the record.';
+    drop.addEventListener('click', () => { clearDay(it.id); ro.remove(); done(); });
+    ro.appendChild(drop);
+
+    if(blocked){
+      ro.appendChild(el('div', 'blocked',
+        `This has moved ${it.carries} times. It cannot just be kept again — break it into sub-items, give it a real date, or drop it.`));
+    }
+    rows.push(ro);
+    m.appendChild(ro);
+  }
+
+  const foot = document.createElement('footer');
+  const anyBlocked = items.some(i => i.carries >= MAX_CARRIES);
+  if(!anyBlocked && items.length > 1){
+    const all = el('button', 'mbtn', 'Keep all today');
+    all.addEventListener('click', () => {
+      items.forEach(it => { it.carries++; setDay(it.id, todayStr()); });
+      finish();
+    });
+    foot.appendChild(all);
+  }
+  const close = el('button', 'mbtn primary', 'Done');
+  close.addEventListener('click', finish);
+  foot.appendChild(close);
+  m.appendChild(foot);
+
+  scrim.appendChild(m);
+  document.body.appendChild(scrim);
+
+  /* Re-render behind the modal after every decision, so the Today list
+     visibly fills up as you work through the pile. */
+  function done(){
+    render();
+    if(!m.querySelectorAll('.ro').length) finish();
+  }
+  function finish(){
+    S.meta.rolloverDoneFor = todayStr();
+    save();
+    scrim.remove();
+    render();
+  }
+}
+
+/* ============================================================
+   Reminders
+   ============================================================ */
+function banner(html){
+  document.getElementById('bannerText').innerHTML = html;
+  document.getElementById('banner').classList.add('show');
+}
+document.getElementById('bannerX').addEventListener('click', () =>
+  document.getElementById('banner').classList.remove('show'));
+
+function notify(title, body){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  try { new Notification(title, {body, tag:'todo-' + title, requireInteraction:false}); }
+  catch(e){ /* some platforms need a service worker; the banner still fires */ }
+}
+
+let lastSeenDay = todayStr();
+
+function checkReminders(){
+  const now = new Date();
+  const td = isoDate(now);
+
+  /* Tab left open past midnight — treat it as a new day. */
+  if(td !== lastSeenDay){
+    lastSeenDay = td;
+    S.meta.rolloverDoneFor = null;
+    save();
+    render();
+  }
+
+  if(isWeekend(now)) return;
+  const fired = S.meta.remindersFiredOn[td] || (S.meta.remindersFiredOn[td] = []);
+
+  for(const r of REMINDERS){
+    if(fired.includes(r.key)) continue;
+    const at = new Date(now); at.setHours(r.h, r.m, 0, 0);
+    if(now < at) continue;
+    const lateMin = Math.round((now - at) / 60000);
+    fired.push(r.key);
+    save();
+    const stamp = pad(r.h) + ':' + pad(r.m);
+    const late = lateMin > 5 ? ` <i>(missed at ${stamp}, ${lateMin} min ago)</i>` : '';
+    banner(`<b>${stamp} — ${r.label.replace('Todo — ','')}.</b> ${r.job}${late}`);
+    notify(r.label, r.job);
+    if(r.key === 'morning'){
+      if(S.meta.rolloverDoneFor !== td) openRollover();
+    } else {
+      document.getElementById('todayPane').scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+  }
+  /* keep the fired-log small */
+  const keys = Object.keys(S.meta.remindersFiredOn);
+  if(keys.length > 20){
+    keys.sort().slice(0, keys.length - 20).forEach(k => delete S.meta.remindersFiredOn[k]);
+    save();
+  }
+}
+
+function paintNotifButton(){
+  const b = document.getElementById('btnNotif');
+  if(!('Notification' in window)){
+    b.textContent = 'No notifications'; b.disabled = true; b.title = 'This browser has no Notification API'; return;
+  }
+  const p = Notification.permission;
+  b.textContent = p === 'granted' ? 'Pop-ups on' : p === 'denied' ? 'Pop-ups blocked' : 'Enable pop-ups';
+  b.classList.toggle('on', p === 'granted');
+  b.title = p === 'granted'
+    ? 'Reminders will pop up while this tab is open. Nothing fires if the browser is closed.'
+    : p === 'denied'
+      ? 'Blocked in browser settings — the in-page banner still works.'
+      : 'Click to allow OS notifications at 09:00, 13:30 and 17:00.';
+}
+document.getElementById('btnNotif').addEventListener('click', async () => {
+  if(!('Notification' in window)) return;
+  try { await Notification.requestPermission(); } catch(e){}
+  paintNotifButton();
+});
+
+/* ============================================================
+   .ics — three recurring weekday events for Outlook
+   ============================================================ */
+function icsEscape(s){
+  return String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+function fold(line){
+  if(line.length <= 73) return line;
+  const parts = [line.slice(0,73)];
+  let rest = line.slice(73);
+  while(rest.length > 72){ parts.push(' ' + rest.slice(0,72)); rest = rest.slice(72); }
+  if(rest) parts.push(' ' + rest);
+  return parts.join('\r\n');
+}
+function utcStamp(d){
+  return d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) + 'T' +
+         pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+}
+function localStamp(d, h, m){
+  const t = new Date(d); t.setHours(h, m, 0, 0);
+  return t.getFullYear() + pad(t.getMonth()+1) + pad(t.getDate()) + 'T' +
+         pad(t.getHours()) + pad(t.getMinutes()) + '00';
+}
+function nextWeekday(){
+  const d = new Date();
+  while(isWeekend(d)) d.setDate(d.getDate() + 1);
+  return d;
+}
+function buildRemindersIcs(){
+  const L = [];
+  const start = nextWeekday();
+  L.push('BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//todo//daily reminders//EN',
+         'CALSCALE:GREGORIAN','METHOD:PUBLISH',
+         'BEGIN:VTIMEZONE','TZID:Europe/Paris',
+         'BEGIN:DAYLIGHT','TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST',
+         'DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU','END:DAYLIGHT',
+         'BEGIN:STANDARD','TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET',
+         'DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU','END:STANDARD',
+         'END:VTIMEZONE');
+  for(const r of REMINDERS){
+    const endMin = r.m + 15;
+    const eh = r.h + Math.floor(endMin / 60), em = endMin % 60;
+    L.push('BEGIN:VEVENT',
+      `UID:todo-reminder-${r.key}@alexmourersanofi.github.io`,
+      'DTSTAMP:' + utcStamp(new Date()),
+      'SEQUENCE:0',
+      'DTSTART;TZID=Europe/Paris:' + localStamp(start, r.h, r.m),
+      'DTEND;TZID=Europe/Paris:' + localStamp(start, eh, em),
+      'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+      'SUMMARY:' + icsEscape(r.label),
+      'DESCRIPTION:' + icsEscape(r.job),
+      'TRANSP:TRANSPARENT',
+      'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY',
+      'DESCRIPTION:' + icsEscape(r.label),
+      'END:VALARM','END:VEVENT');
+  }
+  L.push('END:VCALENDAR');
+  return L.map(fold).join('\r\n') + '\r\n';
+}
+function download(name, text, mime){
+  const b = new Blob([text], {type: mime});
+  const u = URL.createObjectURL(b);
+  const a = document.createElement('a');
+  a.href = u; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 2000);
+}
+document.getElementById('btnIcs').addEventListener('click', () => {
+  download('todo-reminders.ics', buildRemindersIcs(), 'text/calendar;charset=utf-8');
+  banner('<b>Import it into Outlook once.</b> Three recurring weekday events, 09:00 / 13:30 / 17:00. Re-importing later creates duplicates, so keep it to one time.');
+});
+
+/* ============================================================
+   Backup
+   ============================================================ */
+document.getElementById('btnExport').addEventListener('click', () => {
+  S.meta.lastExportAt = new Date().toISOString();
+  save();
+  download(`todo-backup-${todayStr()}.json`, JSON.stringify(S, null, 2), 'application/json');
+});
+document.getElementById('btnImport').addEventListener('click', () =>
+  document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  e.target.value = '';
+  let parsed;
+  try { parsed = JSON.parse(await f.text()); }
+  catch(err){ banner('<b>That file is not valid JSON.</b> Nothing was changed.'); return; }
+  if(!parsed || !Array.isArray(parsed.items)){
+    banner('<b>That does not look like a todo backup.</b> Nothing was changed.'); return;
+  }
+  const ok = await modalChoice('Replace everything?',
+    `The backup holds ${parsed.items.length} item${parsed.items.length===1?'':'s'}. This wipes the current list and its history.`,
+    [{id:'yes', label:'Replace', cls:'danger'}, {id:'no', label:'Cancel', cls:'primary'}]);
+  if(ok !== 'yes') return;
+  S = fresh();
+  S.items = parsed.items.map(normalise);
+  Object.assign(S.meta, parsed.meta || {});
+  save();
+  render();
+  banner(`<b>Restored ${S.items.length} items.</b>`);
+});
+
+function exportNag(){
+  const last = S.meta.lastExportAt;
+  if(!S.items.length) return;
+  const days = last ? Math.round((Date.now() - new Date(last)) / 86400000) : null;
+  if(last === null || days >= EXPORT_NAG_DAYS){
+    banner(last
+      ? `<b>Last backup was ${days} days ago.</b> This list lives only in this browser — Export takes a second.`
+      : `<b>No backup yet.</b> This list lives only in this browser; clearing browser data wipes it. Hit Export.`);
+  }
+}
+
+/* ============================================================
+   Boot
+   ============================================================ */
+document.getElementById('todayPane').addEventListener('dragover', e => {
+  if(!dragId) return;
+  e.preventDefault();
+  document.getElementById('todayPane').classList.add('dragover');
+});
+document.getElementById('todayPane').addEventListener('dragleave', () =>
+  document.getElementById('todayPane').classList.remove('dragover'));
+document.getElementById('todayPane').addEventListener('drop', e => {
+  document.getElementById('todayPane').classList.remove('dragover');
+  if(!dragId) return;
+  e.preventDefault();
+  setDay(dragId, todayStr());
+  dragId = null;
+  render();
+});
+
+document.addEventListener('dragend', () => { dragId = null; clearDropMarks(); });
+
+S = load();
+if(!S.items.length) addItem(null, null);
+lastSeenDay = todayStr();
+paintNotifButton();
+render();
+
+/* The morning prompt is the first thing you meet, before the 09:00 nudge. */
+if(S.meta.rolloverDoneFor !== todayStr() && overdueItems().length) openRollover();
+else if(overdueItems().length === 0) { S.meta.rolloverDoneFor = todayStr(); }
+
+S.meta.lastOpenedAt = new Date().toISOString();
+save();
+setTimeout(exportNag, 1200);
+
+checkReminders();
+setInterval(checkReminders, 30000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) checkReminders(); });
+</script>
+</body>
+</html>
