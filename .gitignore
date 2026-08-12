@@ -1,0 +1,6 @@
+# This repo is PUBLIC (it has to be, for GitHub Pages to serve the page).
+#
+# Your list lives in the browser, never in git — but an exported backup or an
+# imported work log is a plain JSON file full of your actual content. Committing
+# one would publish it. Keep them all out.
+*.json

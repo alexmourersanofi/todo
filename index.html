@@ -1102,10 +1102,28 @@ document.getElementById('fileInput').addEventListener('change', async e => {
   if(!parsed || !Array.isArray(parsed.items)){
     banner('<b>That does not look like a todo backup.</b> Nothing was changed.'); return;
   }
-  const ok = await modalChoice('Replace everything?',
-    `The backup holds ${parsed.items.length} item${parsed.items.length===1?'':'s'}. This wipes the current list and its history.`,
-    [{id:'yes', label:'Replace', cls:'danger'}, {id:'no', label:'Cancel', cls:'primary'}]);
-  if(ok !== 'yes') return;
+  const n = parsed.items.length;
+  const ok = await modalChoice(`Import ${n} item${n===1?'':'s'}`,
+    'Merge keeps what you already have and adds these to it. Replace wipes the current list and its history — only for restoring a backup.',
+    [{id:'merge', label:'Merge in', cls:'primary'},
+     {id:'replace', label:'Replace everything', cls:'danger'},
+     {id:'cancel', label:'Cancel'}]);
+
+  if(ok === 'merge'){
+    const r = mergeItems(parsed.items);
+    render();
+    if(r.allDone){
+      document.getElementById('histDetails').open = true;
+      banner(`<b>Merged ${r.added} items.</b> They are already done, so they are in History, not the active list.`
+        + (r.adopted ? ` Hung under your existing “${r.adoptedTitles.join('”, “')}”.` : ''));
+    } else {
+      banner(`<b>Merged ${r.added} items.</b>`
+        + (r.adopted ? ` Hung under your existing “${r.adoptedTitles.join('”, “')}”.` : ''));
+    }
+    return;
+  }
+  if(ok !== 'replace') return;
+
   S = fresh();
   S.items = parsed.items.map(normalise);
   Object.assign(S.meta, parsed.meta || {});
@@ -1113,6 +1131,50 @@ document.getElementById('fileInput').addEventListener('change', async e => {
   render();
   banner(`<b>Restored ${S.items.length} items.</b>`);
 });
+
+/* Add incoming items alongside what is already here.
+   An incoming top-level item whose title matches an existing section is not
+   duplicated — its children are hung under the section you already have. */
+function mergeItems(incoming){
+  const norm = s => (s || '').trim().toLowerCase();
+  const items = incoming.map(normalise);
+  const newIds = new Map();
+  items.forEach(i => newIds.set(i.id, uid()));
+
+  const rootIds = new Set(
+    items.filter(i => !i.parentId || !items.some(p => p.id === i.parentId)).map(i => i.id));
+
+  const adopt = new Map();
+  const adoptedTitles = [];
+  for(const id of rootIds){
+    const r = items.find(i => i.id === id);
+    const t = norm(r.title);
+    const match = t && S.items.find(x => !x.parentId && norm(x.title) === t);
+    adopt.set(id, match ? match.id : null);
+    if(match){ adoptedTitles.push(match.title); if(match.collapsed) match.collapsed = false; }
+  }
+
+  let added = 0;
+  for(const i of items){
+    if(rootIds.has(i.id) && adopt.get(i.id)) continue;   // section already exists
+    const it = normalise(i);
+    it.id = newIds.get(i.id);
+    if(!i.parentId || !newIds.has(i.parentId)) it.parentId = null;
+    else if(rootIds.has(i.parentId) && adopt.get(i.parentId)) it.parentId = adopt.get(i.parentId);
+    else it.parentId = newIds.get(i.parentId);
+    it.order = childrenOf(it.parentId).length + 1000;    // append, then renumber
+    S.items.push(it);
+    added++;
+  }
+  [...new Set(S.items.map(x => x.parentId))].forEach(renumber);
+  save();
+  return {
+    added,
+    adopted: adoptedTitles.length,
+    adoptedTitles,
+    allDone: added > 0 && items.every(i => i.doneAt || rootIds.has(i.id))
+  };
+}
 
 function exportNag(){
   const last = S.meta.lastExportAt;

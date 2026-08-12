@@ -52,8 +52,21 @@ Everything lives in this browser's `localStorage`. **It is not in GitHub, not
 synced, and not backed up.** Clearing browser data or resetting the profile
 wipes the list and its history with no recovery.
 
-Hit **Export** now and then and commit the JSON somewhere. **Import** puts it
-back. The app nags you if it's been more than 30 days.
+Hit **Export** now and then and keep the JSON somewhere private. The app nags
+you if it's been more than 30 days.
+
+**Import** has two modes:
+
+- **Merge in** — adds the file's items to what you already have. If its
+  top-level section has the same name as one of yours, the items are hung under
+  your existing section instead of making a second one. Use this to log a batch
+  of work in from outside the app.
+- **Replace everything** — restoring a backup. Wipes the current list first.
+
+⚠️ **This repo is public** — it has to be for Pages to serve the page. The page
+holds no data, but an exported backup or a work log is your content in a plain
+file. `.gitignore` blocks `*.json` here so you can't commit one by accident.
+Keep them somewhere private.
 
 ## What it deliberately does not do
 

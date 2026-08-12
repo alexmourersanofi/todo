@@ -295,9 +295,21 @@ Three cheap mitigations, all included because they cost almost nothing:
 - An **Export** button — downloads the whole state as JSON. Commit the file to
   this repo whenever you care.
 - An **Import** button. Not in the first draft of this spec, and added because an
-  export you cannot restore from is not a backup.
+  export you cannot restore from is not a backup. It offers two modes:
+  - **Merge in** — adds the file's items alongside what is already there. If the
+    file's top-level section matches an existing one by name, its children are
+    hung under the section you already have rather than creating a duplicate.
+    This is how a batch of work gets logged in from outside the app.
+  - **Replace everything** — for restoring a backup. Wipes the current list.
 - A prompt on open if the last export is more than 30 days old, or if there has
   never been one.
+
+### The repo is public
+
+GitHub Pages requires it. The page itself contains no data, so that is fine —
+but an exported backup or an imported work log *is* your content in a plain
+file. `.gitignore` excludes `*.json` from this repo for exactly that reason.
+Keep backups somewhere private.
 
 `localStorage` gives ~5MB. At ~40 active items plus history this is not a
 constraint for many years.
