@@ -1,6 +1,10 @@
 # This repo is PUBLIC (it has to be, for GitHub Pages to serve the page).
 #
-# Your list lives in the browser, never in git — but an exported backup or an
-# imported work log is a plain JSON file full of your actual content. Committing
-# one would publish it. Keep them all out.
+# Your list lives in the browser, never in git — but an exported backup or a
+# plaintext batch file is your actual content. Committing one would publish it.
+# Keep them all out.
 *.json
+
+# ...except the inbox, which holds only ciphertext and has to be committed to
+# reach the browser. Encrypt with tools/inbox-encrypt.js — never hand-write it.
+!inbox.json

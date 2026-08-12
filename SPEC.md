@@ -29,7 +29,7 @@ they are listed so they don't creep back in.
 | Search box, collapse-all | The list is ~5–10 top items × 2–3 sub-items. It fits on one screen. |
 | Time tracking / stopwatch | Not wanted. Only *estimated* hours, and only for scheduled work. |
 | Push notifications when the browser is closed | Impossible for a static page without a push backend. Accepted. |
-| Recurring items ("check inbox" every day) | Explicitly deferred. May return later; see §12. |
+| Recurring items ("check inbox" every day) | Explicitly deferred. May return later; see §13. |
 | Due dates auto-populating the Today list | Rejected — it would make Today dishonest. Due dates surface on the roadmap instead. |
 | Parent auto-completing when its children are done | Rejected. Completion is always a deliberate act. |
 | Reading the user's real Outlook calendar | A static page cannot. Consequence accepted in §9. |
@@ -40,7 +40,8 @@ they are listed so they don't creep back in.
   dependencies. Vanilla HTML/CSS/JS so it still works in five years.
 - **Hosted on GitHub Pages** from this repo. The repo must be made **public** —
   GitHub Pages does not serve private repos on a free personal account.
-  No task data is ever committed, so nothing personal becomes public.
+  The list itself is never committed. The one exception is the inbox (§12),
+  which is committed **encrypted** precisely because the repo is public.
 - **Usage model: a pinned browser tab**, left open all day, Chrome or Edge on a
   Windows laptop. Paris time.
 
@@ -157,9 +158,9 @@ section, for reasons that only became clear once it existed:
   child**, not a sibling — the standard outliner behaviour, and what the hand
   expects. Otherwise `Enter` creates a sibling below.
 
-Indenting an item takes its descendants with it. Deleting is only available from
-a right-click menu, with a confirm — the whole point of this list is that things
-don't quietly vanish.
+Indenting an item takes its descendants with it. Deleting is a small `×` that
+appears on hover, behind a confirm that names how many sub-items go with it —
+the whole point of this list is that things don't quietly vanish.
 
 ### Pulling an item into Week or Today
 
@@ -307,14 +308,56 @@ Three cheap mitigations, all included because they cost almost nothing:
 ### The repo is public
 
 GitHub Pages requires it. The page itself contains no data, so that is fine —
-but an exported backup or an imported work log *is* your content in a plain
-file. `.gitignore` excludes `*.json` from this repo for exactly that reason.
-Keep backups somewhere private.
+but an exported backup or a plaintext batch file *is* your content. `.gitignore`
+excludes `*.json` for exactly that reason, with one deliberate exception,
+`inbox.json`, which holds only ciphertext. Keep backups somewhere private.
+
+## 12. The inbox
+
+Added after Pass 1, in response to the obvious complaint about hand-importing a
+file: *why can't you just put it in the list?*
+
+The honest constraint is that a static page with no backend has no inbound
+channel, and this repo is the only shared surface between the two of us. So the
+inbox is a file in the repo that the page polls:
+
+- On first use the browser generates an **RSA-OAEP-2048 keypair** and keeps it in
+  `localStorage` under its own key. The private half never leaves the browser and
+  is **not** included in an Export — a backup file should not be a key leak.
+- The public half is handed out via the **Inbox key** button.
+- A batch is encrypted as `AES-256-GCM` payload + the AES key wrapped to that
+  public key, written into `inbox.json` as an envelope with a random id, and
+  committed. `tools/inbox-encrypt.js` does this.
+- The page fetches `inbox.json` on load, on regaining focus, and every 5 minutes.
+  Envelopes it has already merged are recorded in `meta.inboxSeen` and skipped,
+  so arrival is idempotent. Envelopes it cannot decrypt are left *unseen* rather
+  than consumed, so a restored key can still collect them.
+- Arriving items go through the same **merge** path as Import, so a batch whose
+  top-level section already exists is filed under it rather than duplicating it.
+
+Consequences worth stating plainly:
+
+- **The ciphertext is public and permanent.** Git history keeps it, and the repo
+  is world-readable. The scheme's secrecy rests entirely on the private key
+  staying in that browser. This is fine for RSA-OAEP + AES-GCM today; it is not
+  a promise about 2045.
+- **Lose the key, lose the inbox.** Not the list — that is in `localStorage`
+  independently — just the ability to open batches already sitting in the file.
+  The remedy is to hand over a new public key.
+- **It is one-way.** Items come in; nothing goes out. The page never writes to
+  the repo, so there is no token anywhere and nothing to leak.
+
+The alternative considered and rejected was a second, private repo holding the
+data, with the page reading and writing it via a fine-grained token. It is a
+better long-term design — it would give real backups with git history and kill
+the data-loss risk in §11 — but it needs write access to a repo outside what
+this session could reach, and the token adds a credential on a work laptop.
+Worth revisiting if the inbox proves useful.
 
 `localStorage` gives ~5MB. At ~40 active items plus history this is not a
 constraint for many years.
 
-## 12. Build order
+## 13. Build order
 
 Both passes are agreed. Pass 1 ships and gets used before Pass 2 starts.
 
@@ -346,7 +389,7 @@ behaviour.
 
 Possible later, deliberately not now: recurring items (§2).
 
-## 13. Open questions
+## 14. Open questions
 
 None blocking. Two things to revisit after two weeks of real use:
 

@@ -46,6 +46,23 @@ to a date**, or **drop**. Nothing carries over silently. Each carry bumps a
 counter that runs green → red, and at `×5` the item stops accepting "keep" —
 break it down, date it, or drop it.
 
+## Getting items in without touching the app
+
+Click **Inbox key** once and hand over the public key it shows. After that, a
+batch of items can be encrypted to this browser, committed to `inbox.json`, and
+it lands in your list on its own the next time the tab loads or regains focus
+(it also re-checks every 5 minutes). No file to download, no clicks.
+
+Why encrypted: this repo is public, so `inbox.json` is world-readable. Only your
+browser holds the private key, so all anyone else sees is noise. The private key
+never leaves the browser and is deliberately **not** in an Export — if you clear
+storage or switch browser, a fresh key is generated and you hand over the new
+one.
+
+To send a batch: `node tools/inbox-encrypt.js <public-key.json> <batch.json>`,
+then commit `inbox.json`. The batch file itself is plaintext — `.gitignore`
+keeps it out of the repo.
+
 ## Backups — read this once
 
 Everything lives in this browser's `localStorage`. **It is not in GitHub, not

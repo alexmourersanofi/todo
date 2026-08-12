@@ -147,6 +147,7 @@ main{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:18px;
   <div class="spacer"></div>
   <button class="hbtn" id="btnNotif"></button>
   <button class="hbtn" id="btnIcs" title="Three recurring weekday events for Outlook">Reminders .ics</button>
+  <button class="hbtn" id="btnKey" title="The public key that items can be encrypted to">Inbox key</button>
   <button class="hbtn" id="btnExport" title="Download a backup of everything">Export</button>
   <button class="hbtn" id="btnImport" title="Restore from a backup file">Import</button>
   <input type="file" id="fileInput" accept="application/json,.json" hidden>
@@ -1179,6 +1180,9 @@ function mergeItems(incoming){
 function exportNag(){
   const last = S.meta.lastExportAt;
   if(!S.items.length) return;
+  /* Never talk over a live message — a reminder or an inbox arrival matters
+     more than a backup nudge, and the nudge will come round again. */
+  if(document.getElementById('banner').classList.contains('show')) return;
   const days = last ? Math.round((Date.now() - new Date(last)) / 86400000) : null;
   if(last === null || days >= EXPORT_NAG_DAYS){
     banner(last
@@ -1186,6 +1190,132 @@ function exportNag(){
       : `<b>No backup yet.</b> This list lives only in this browser; clearing browser data wipes it. Hit Export.`);
   }
 }
+
+/* ============================================================
+   Inbox — batches committed to the repo, encrypted to this browser
+
+   The repo is public, so the file cannot be readable. This browser holds an
+   RSA private key that never leaves it (not even in an Export); the matching
+   public key is handed out, and each batch arrives as an AES-GCM payload with
+   its key wrapped to that public key. To anyone reading the repo it is noise.
+   ============================================================ */
+const KEYSTORE = 'todo.inboxkey.v1';
+const INBOX_URL = 'inbox.json';
+let inboxKeys = null;
+
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const canCrypto = () => !!(window.crypto && crypto.subtle);
+
+async function ensureKeys(){
+  if(inboxKeys) return inboxKeys;
+  try {
+    const raw = localStorage.getItem(KEYSTORE);
+    if(raw){ inboxKeys = JSON.parse(raw); return inboxKeys; }
+  } catch(e){ /* unreadable or absent — generate below */ }
+  if(!canCrypto()) return null;
+  const kp = await crypto.subtle.generateKey(
+    {name:'RSA-OAEP', modulusLength:2048, publicExponent:new Uint8Array([1,0,1]), hash:'SHA-256'},
+    true, ['encrypt','decrypt']);
+  inboxKeys = {
+    pub:  await crypto.subtle.exportKey('jwk', kp.publicKey),
+    priv: await crypto.subtle.exportKey('jwk', kp.privateKey)
+  };
+  try { localStorage.setItem(KEYSTORE, JSON.stringify(inboxKeys)); } catch(e){}
+  return inboxKeys;
+}
+
+async function openEnvelope(env){
+  const priv = await crypto.subtle.importKey('jwk', inboxKeys.priv,
+    {name:'RSA-OAEP', hash:'SHA-256'}, false, ['decrypt']);
+  const rawKey = await crypto.subtle.decrypt({name:'RSA-OAEP'}, priv, unb64(env.key));
+  const aes = await crypto.subtle.importKey('raw', rawKey, {name:'AES-GCM'}, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt(
+    {name:'AES-GCM', iv:unb64(env.iv)}, aes, unb64(env.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+let inboxBusy = false;
+async function checkInbox(){
+  if(inboxBusy) return;
+  inboxBusy = true;
+  try {
+    if(!await ensureKeys()) return;
+    let data;
+    try {
+      const r = await fetch(INBOX_URL + '?t=' + Date.now(), {cache:'no-store'});
+      if(!r.ok) return;                 // no inbox published yet
+      data = await r.json();
+    } catch(e){ return; }               // offline, or not valid JSON
+
+    const envs = Array.isArray(data && data.envelopes) ? data.envelopes : [];
+    const seen = S.meta.inboxSeen || (S.meta.inboxSeen = []);
+    let added = 0;
+    const sections = new Set();
+
+    for(const env of envs){
+      if(!env || !env.id || seen.includes(env.id)) continue;
+      let payload;
+      /* A batch encrypted to a different browser simply will not open. Leave it
+         unseen rather than burning it — a restored key should still find it. */
+      try { payload = await openEnvelope(env); } catch(e){ continue; }
+      if(!payload || !Array.isArray(payload.items)){ seen.push(env.id); continue; }
+      const r = mergeItems(payload.items);
+      added += r.added;
+      r.adoptedTitles.forEach(t => sections.add(t));
+      seen.push(env.id);
+    }
+
+    if(added){
+      save();
+      render();
+      const anyDone = S.items.some(i => i.doneAt);
+      if(anyDone) document.getElementById('histDetails').open = true;
+      banner(`<b>${added} item${added===1?'':'s'} arrived.</b>`
+        + (sections.size ? ` Filed under “${[...sections].join('”, “')}”.` : '')
+        + (anyDone ? ' Anything already finished is in History.' : ''));
+    } else if(S.meta.inboxSeen){ save(); }
+  } finally { inboxBusy = false; }
+}
+
+function showKeyModal(pubJson){
+  const scrim = el('div', 'scrim');
+  const m = el('div', 'modal');
+  m.appendChild(el('h3', null, 'This browser’s inbox key'));
+  m.appendChild(el('p', 'lead',
+    'Public half only — safe to paste anywhere. Hand it over once, and batches can be encrypted to this browser and land here on their own. The private half stays in this browser and is not included in an Export; if you switch browser or clear storage, a new key is generated and you hand over the new one.'));
+  const ta = document.createElement('textarea');
+  ta.value = pubJson;
+  ta.readOnly = true;
+  ta.style.cssText = 'width:100%;height:120px;font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;'
+    + 'border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical;background:#fbfbf9';
+  m.appendChild(ta);
+  const foot = document.createElement('footer');
+  const copy = el('button', 'mbtn primary', 'Copy');
+  copy.addEventListener('click', async () => {
+    ta.select();
+    try { await navigator.clipboard.writeText(pubJson); copy.textContent = 'Copied'; }
+    catch(e){ document.execCommand('copy'); copy.textContent = 'Copied'; }
+  });
+  const close = el('button', 'mbtn', 'Close');
+  close.addEventListener('click', () => scrim.remove());
+  foot.appendChild(copy); foot.appendChild(close);
+  m.appendChild(foot);
+  scrim.appendChild(m);
+  scrim.addEventListener('click', e => { if(e.target === scrim) scrim.remove(); });
+  document.body.appendChild(scrim);
+  ta.select();
+}
+
+document.getElementById('btnKey').addEventListener('click', async () => {
+  if(!canCrypto()){
+    banner('<b>No inbox key possible here.</b> Key generation needs a secure page — open this over https, not from a local file.');
+    return;
+  }
+  const k = await ensureKeys();
+  if(!k){ banner('<b>Could not generate an inbox key.</b>'); return; }
+  showKeyModal(JSON.stringify(k.pub));
+});
 
 /* ============================================================
    Boot
@@ -1225,6 +1355,10 @@ setTimeout(exportNag, 1200);
 checkReminders();
 setInterval(checkReminders, 30000);
 document.addEventListener('visibilitychange', () => { if(!document.hidden) checkReminders(); });
+
+checkInbox();
+setInterval(checkInbox, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) checkInbox(); });
 </script>
 </body>
 </html>
