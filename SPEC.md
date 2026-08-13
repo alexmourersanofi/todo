@@ -3,8 +3,8 @@
 A single-page, keyboard-friendly nested todo list with a weekly and daily
 commitment layer, carry-over pressure, three daily nudges, and a roadmap.
 
-Status: **Pass 1 built (`index.html`). Pass 2 not started.**
-Date: 2026-08-11
+Status: **Pass 1 built. Pass 2: roadmap built; week list and calendar export pending.**
+Date: 2026-08-13
 
 ---
 
@@ -268,19 +268,38 @@ Events carry `TZID=Europe/Paris` with a `VTIMEZONE` block.
 
 ## 10. Roadmap
 
-A horizontal timeline below the lists.
+A horizontal timeline below the lists. Built; 13px per day, horizontally
+scrollable, with a sticky label column.
 
-- **Window:** today through **31 December of the current year**, horizontally
-  scrollable. With a floor of 8 weeks, so the view doesn't collapse to nothing
-  each December (from ~November it extends into the following year).
-- **Rows:** top-level sections of the Big List.
-- **Bars:** an item that is both scheduled and has a due date draws a bar from
-  its planned day to its `due`. No extra field needed — scheduling already
-  supplies the start.
-- **Markers:** an item with a `due` but never scheduled shows as a single
-  diamond on its due date. Nothing scheduled and nothing due doesn't appear.
-- **A vertical "today" line.** Bars whose `due` is past and which aren't done
-  are red.
+- **Window:** Monday of this week through **31 December of the current year**,
+  with a floor of 8 weeks so the view doesn't collapse to nothing each December.
+  Two adjustments, both to avoid silently hiding things:
+  - pulled **back** up to 4 weeks to keep overdue items on screen;
+  - reached **forward** to cover a later due date, but never past 40 weeks total
+    — one item three years out must not turn this into a mile of scrolling.
+    Anything beyond the edge is clamped there and dimmed, with a tooltip saying
+    it is outside the window.
+- **Rows:** grouped by top-level section, then **one row per dated item**. A
+  single row per section cannot show four dated items without them colliding, so
+  the section gets a header row and its items get a row each — a Gantt, in
+  effect.
+- **Section roll-up bar:** each section header row carries a pale bar spanning
+  the earliest to latest due date beneath it. This is where most of the visible
+  "bars" come from in practice.
+- **Bars:** an item that is both scheduled and dated draws a bar from its
+  planned day to its `due`. No extra field needed — scheduling supplies the
+  start.
+- **Diamonds:** an item with a `due` but never scheduled is a single moment, so
+  it renders as a diamond on its due date. A milestone — a presentation on a
+  fixed day — is genuinely a diamond, not a bar. Undated items don't appear.
+- **A vertical "today" line** on every row, and a red one. Overdue-and-open bars
+  and diamonds are red; done ones are grey with the label struck through.
+- The summary line states the window, how many items are dated, and how many are
+  overdue.
+
+One bug worth recording, found by test: `new Date(y, 11, 31).toISOString()`
+yields **30** December anywhere east of UTC. Date strings for the window are
+built by concatenation, not by round-tripping a local `Date` through UTC.
 
 ## 11. Storage and data loss
 
@@ -377,10 +396,11 @@ persistence, the rollover prompt including the `×5` hard stop, `.ics` structure
 (3 events, weekday `RRULE`, `VTIMEZONE`, `VALARM`, CRLF), backup round-trip,
 keyboard shortcuts, and drag-to-reparent.
 
-**Pass 2 — the planning layer**
-- Week List with ETA hours
-- Auto-packed weekly `.ics` export with over-commitment warnings
-- Roadmap bars
+**Pass 2 — the planning layer** — *roadmap built, rest pending*
+- [x] Roadmap bars — 27 checks: geometry against real date gaps, roll-up spans,
+      bar vs diamond, overdue colour, the window's back-reach and 40-week cap
+- [ ] Week List with ETA hours
+- [ ] Auto-packed weekly `.ics` export with over-commitment warnings
 
 Rationale: Pass 1 is what gets opened every morning and is the whole of the
 original request. Pass 2 pays off only once the habit is real, and it holds all
