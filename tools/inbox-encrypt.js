@@ -41,7 +41,12 @@ if (!Array.isArray(items) || !items.length) {
 
 const pub = crypto.createPublicKey({ key: jwk, format: 'jwk' });
 
-const payload = Buffer.from(JSON.stringify({ v: 1, items }), 'utf8');
+/* An optional replaceSections list lets a batch correct an earlier one: named
+   top-level sections are removed before the merge. Without it a batch can only
+   ever add, so a mistake would be stuck in the browser forever. */
+const replaceSections = Array.isArray(batch.replaceSections) ? batch.replaceSections : undefined;
+const payload = Buffer.from(JSON.stringify({ v: 1, items, replaceSections }), 'utf8');
+if (replaceSections) console.log(`will replace section(s): ${replaceSections.join(', ')}`);
 const aesKey = crypto.randomBytes(32);
 const iv = crypto.randomBytes(12);
 const c = crypto.createCipheriv('aes-256-gcm', aesKey, iv);

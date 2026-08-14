@@ -106,6 +106,8 @@ tree.
       order:     0,               // sort key among siblings, manual drag order
       title:     "Contract review",
       collapsed: false,           // drawer open or shut
+      kind:      "task",          // "task" (list + Today) or "roadmap" (timeline only)
+      start:     null,            // roadmap phase start; with due it draws a bar
       due:       "2026-09-15",    // optional ISO date
       week:      "2026-W33",      // optional — membership of the Week List
       day:       "2026-08-11",    // optional — membership of the Today List
@@ -271,6 +273,46 @@ Events carry `TZID=Europe/Paris` with a `VTIMEZONE` block.
 A horizontal timeline below the lists. Built; 13px per day, horizontally
 scrollable, with a sticky label column.
 
+### Roadmap items are their own kind of thing
+
+**Corrected after the first build.** The roadmap originally had no data of its
+own — it only reflected task items that happened to carry a due date. That is
+wrong: *"M1 presentation, 21 September"* is a milestone on a project timeline,
+not something you tick off on a Tuesday. Putting it in the task list buries the
+day's actual work under project structure.
+
+So every item now has a `kind`:
+
+- `task` (the default) — lives in the Big List and can be pulled into Today. If
+  it has a due date it *also* appears on the roadmap, because a deadline is worth
+  seeing against the calendar.
+- `roadmap` — project structure. Appears **only** on the timeline, never in the
+  Big List and never in Today.
+
+Moving between the two: `→ roadmap` on any list row, and *Move to the list* in
+the roadmap editor. The subtree moves with it — a milestone's sub-points are part
+of the milestone. Returning an item to the list re-homes it under the nearest
+ordinary ancestor, since the outline never walks into roadmap items and it would
+otherwise be invisible.
+
+Roadmap items are edited in place: clicking a roadmap row opens a small editor
+for title, start, due, with delete and move. That is the only way to edit them,
+since by definition they are not in the list.
+
+### Dates
+
+A new `start` field, distinct from `day`:
+
+- **`start` + `due`** → a bar spanning the two. This is how a phase is expressed,
+  and it needs no scheduling.
+- **`due` only** → a diamond. A presentation on a fixed day is a moment.
+- **neither** → the row still appears, italic, labelled *date?*, and counted in
+  the summary as "still need a date". Deliberately visible: a milestone with no
+  date is a thing to chase, not a thing to hide.
+
+For `task` items the anchor is `day` rather than `start`, so a scheduled task
+still spans planned-day → due as before.
+
 - **Window:** Monday of this week through **31 December of the current year**,
   with a floor of 8 weeks so the view doesn't collapse to nothing each December.
   Two adjustments, both to avoid silently hiding things:
@@ -279,13 +321,13 @@ scrollable, with a sticky label column.
     — one item three years out must not turn this into a mile of scrolling.
     Anything beyond the edge is clamped there and dimmed, with a tooltip saying
     it is outside the window.
-- **Rows:** grouped by top-level section, then **one row per dated item**. A
-  single row per section cannot show four dated items without them colliding, so
-  the section gets a header row and its items get a row each — a Gantt, in
-  effect.
-- **Section roll-up bar:** each section header row carries a pale bar spanning
-  the earliest to latest due date beneath it. This is where most of the visible
-  "bars" come from in practice.
+- **Rows:** grouped by top-level section, then **one row per item**. A single row
+  per section cannot show four dated items without them colliding, so the section
+  gets a header row and its items get a row each — a Gantt, in effect. A
+  top-level item heads its own group and is **not** repeated as a row inside it.
+- **Section header row:** if the section itself carries dates, it shows its own
+  bar or diamond. If it does not, it shows a pale **roll-up** spanning the
+  earliest to latest date beneath it.
 - **Bars:** an item that is both scheduled and dated draws a bar from its
   planned day to its `due`. No extra field needed — scheduling supplies the
   start.
@@ -320,6 +362,10 @@ Three cheap mitigations, all included because they cost almost nothing:
     file's top-level section matches an existing one by name, its children are
     hung under the section you already have rather than creating a duplicate.
     This is how a batch of work gets logged in from outside the app.
+  - A batch may also carry **`replaceSections`**: named top-level sections are
+    deleted before the merge. Merging alone can only ever add, so without this a
+    batch sent in error would be stuck in the browser permanently. Destructive by
+    design — the number of items removed is reported in the banner.
   - **Replace everything** — for restoring a backup. Wipes the current list.
 - A prompt on open if the last export is more than 30 days old, or if there has
   never been one.
@@ -399,6 +445,8 @@ keyboard shortcuts, and drag-to-reparent.
 **Pass 2 — the planning layer** — *roadmap built, rest pending*
 - [x] Roadmap bars — 27 checks: geometry against real date gaps, roll-up spans,
       bar vs diamond, overdue colour, the window's back-reach and 40-week cap
+- [x] Roadmap items as their own kind, `start` dates, in-place editing, and
+      `replaceSections` for correcting a batch — 25 further checks
 - [ ] Week List with ETA hours
 - [ ] Auto-packed weekly `.ics` export with over-commitment warnings
 

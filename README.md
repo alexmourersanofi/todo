@@ -35,6 +35,17 @@ Right pane is **today** — drag things across, or `Alt+T`.
 Click a bullet to shut a drawer. Drag the handle to reorder — the top or bottom
 edge of a row drops it as a sibling, the middle makes it a child.
 
+Below the lists is the **roadmap**. Two kinds of thing show up there:
+
+- anything you send there with **`→ roadmap`** — milestones and phases. These
+  live *only* on the timeline, never in the task list, because "M1 presentation,
+  21 Sep" is not something you tick off on a Tuesday.
+- any ordinary task that has a due date, so deadlines show against the calendar.
+
+Click any roadmap row to edit its title, start and due date, or move it back into
+the list. **Start + due draws a bar. Due alone is a diamond.** Neither and it
+sits there in italics marked *date?* until you give it one.
+
 Pulling an item into Today brings its sub-items with it. Its parents come along
 as a grey breadcrumb so you can see where it belongs. Ticking anything ticks it
 in both panes at once — there's only ever one copy of an item.
@@ -91,5 +102,5 @@ No mobile, no sync, no search, no time tracking, no recurring items. Reminders
 cannot fire when the browser is closed — that's what the Outlook events are
 for. See §2 and §3 of [`SPEC.md`](SPEC.md) for the full list and why.
 
-Still to build (Pass 2): week list with hour estimates, auto-packed calendar
-export, roadmap timeline.
+Still to build (Pass 2): week list with hour estimates, and the auto-packed
+calendar export.

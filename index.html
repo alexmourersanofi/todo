@@ -132,6 +132,13 @@ main{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:18px;
 .rm-dia.done{background:var(--done)}
 .rm-dia.over{background:var(--warn)}
 .rm-off{opacity:.45}
+.rm-edit{cursor:pointer}
+.rm-edit:hover{color:var(--accent)}
+.rm-nodate{color:var(--faint);font-style:italic}
+.rm-nodate:after{content:' — date?';font-style:normal;font-size:10px}
+.medit{display:grid;grid-template-columns:70px 1fr;gap:8px 10px;align-items:center;margin:14px 0 4px}
+.medit label{font-size:12px;color:var(--muted)}
+.medit input{border:1px solid var(--line);border-radius:5px;padding:5px 7px;background:#fbfbf9;width:100%}
 
 /* ---------- history ---------- */
 #hist{max-width:1500px;margin:0 auto 30px;padding:0 18px}
@@ -308,6 +315,8 @@ function normalise(o){
     order: typeof o.order === 'number' ? o.order : 0,
     title: typeof o.title === 'string' ? o.title : '',
     collapsed: !!o.collapsed,
+    kind: o.kind === 'roadmap' ? 'roadmap' : 'task',
+    start: o.start || null,          // roadmap phase start; with due it draws a bar
     due: o.due || null,
     week: o.week || null,
     day: o.day || null,
@@ -352,6 +361,11 @@ function subtreeContains(rootId, id){
   return descendantsOf(rootId).some(d => d.id === id);
 }
 const hasOpenDescendant = id => descendantsOf(id).some(d => !d.doneAt);
+
+/* Roadmap items are project structure — milestones and phases. They live only
+   on the timeline and are deliberately kept out of the list and out of Today,
+   because "M1 presentation, 21 Sep" is not something you tick off on a Tuesday. */
+const isRoadmap = it => it.kind === 'roadmap';
 
 /* An item leaves the live outline once it is done, the day it was done has
    passed, and nothing open remains beneath it. Until then it stays visible,
@@ -449,6 +463,32 @@ function setDay(id, day){
   targets.forEach(t => { t.day = day; t.week = wk; });
   save();
 }
+/* Moving something between the list and the roadmap takes its subtree with it —
+   a milestone's sub-points are part of the milestone. */
+function setKind(id, kind){
+  const it = byId(id);
+  [it, ...descendantsOf(id)].forEach(t => {
+    t.kind = kind;
+    if(kind === 'roadmap'){ t.day = null; t.week = null; }
+  });
+  /* Coming back to the list, an item sitting under roadmap structure would be
+     invisible — the outline never walks into roadmap items. Re-home it under the
+     nearest ordinary ancestor, or at the top level. */
+  if(kind === 'task'){
+    let p = it.parentId ? byId(it.parentId) : null;
+    while(p && isRoadmap(p)) p = p.parentId ? byId(p.parentId) : null;
+    const newPid = p ? p.id : null;
+    if(newPid !== it.parentId){
+      const old = it.parentId;
+      it.parentId = newPid;
+      it.order = childrenOf(newPid).length + 1000;
+      renumber(old);
+      renumber(newPid);
+    }
+  }
+  save();
+}
+
 function clearDay(id){
   const it = byId(id);
   [it, ...descendantsOf(id)].forEach(t => { t.day = null; t.week = null; });
@@ -602,6 +642,12 @@ function rowEl(it, pane, depth, showBreadcrumb){
   });
   row.appendChild(t);
 
+  if(pane === 'o'){
+    const rbtn = el('button', 'act', '→ roadmap');
+    rbtn.title = 'Take this out of the list and keep it on the timeline instead';
+    rbtn.addEventListener('click', () => { setKind(it.id, 'roadmap'); render(); });
+    row.appendChild(rbtn);
+  }
   if(pane === 'o' && !it.due){
     const dbtn = el('button', 'act', 'due');
     dbtn.title = 'Set a due date';
@@ -675,7 +721,7 @@ function renderOutline(){
   host.textContent = '';
   const walk = (pid, depth) => {
     for(const it of childrenOf(pid)){
-      if(isArchived(it)) continue;
+      if(isArchived(it) || isRoadmap(it)) continue;
       host.appendChild(rowEl(it, 'o', depth, false));
       if(!it.collapsed) walk(it.id, depth + 1);
     }
@@ -692,7 +738,7 @@ function renderToday(){
   const host = document.getElementById('today');
   host.textContent = '';
   const td = todayStr();
-  const members = S.items.filter(i => i.day === td);
+  const members = S.items.filter(i => i.day === td && !isRoadmap(i));
 
   /* Roots of the committed subtrees: members whose parent is not a member. */
   const roots = members.filter(i => !i.parentId || !members.some(m => m.id === i.parentId));
@@ -737,7 +783,7 @@ function roadmapWindow(dated){
   const td = todayStr();
   const t = dayNum(td);
   let from = t - ((new Date(td + 'T00:00:00').getDay() + 6) % 7);   // Monday
-  const dues = dated.map(i => dayNum(i.due));
+  const dues = dated.flatMap(i => [i.due, i.start].filter(Boolean).map(dayNum));
   const earliest = dues.length ? Math.min(...dues) : from;
   if(earliest < from) from = Math.max(earliest, t - 28);
 
@@ -759,11 +805,14 @@ function renderRoadmap(){
   const sub = document.getElementById('roadmapSub');
   host.textContent = '';
 
-  const dated = S.items.filter(i => i.due && !isArchived(i));
-  if(!dated.length){
-    sub.textContent = 'Due dates show up here.';
+  /* Two kinds of thing belong here: anything marked as roadmap structure, and
+     any ordinary task that carries a deadline worth seeing against the calendar. */
+  const shown = S.items.filter(i => !isArchived(i) && (isRoadmap(i) || i.due));
+  const dated = shown.filter(i => i.due || i.start);
+  if(!shown.length){
+    sub.textContent = 'Milestones and deadlines show up here.';
     host.appendChild(el('div', 'empty',
-      'Nothing has a due date yet — press Alt+D on an item, or use its “due” button.'));
+      'Nothing here yet — put a due date on an item with Alt+D, or send it to the roadmap with its “→ roadmap” button.'));
     return;
   }
 
@@ -840,16 +889,27 @@ function renderRoadmap(){
   /* group by top-level section */
   const rootOf = it => { const a = ancestorsOf(it.id); return a.length ? a[0] : it; };
   const groups = new Map();
-  for(const it of dated){
+  for(const it of shown){
     const r = rootOf(it);
     if(!groups.has(r.id)) groups.set(r.id, {root:r, items:[]});
-    groups.get(r.id).items.push(it);
+    /* A top-level item heads its own group — it must not also appear as one of
+       that group's rows, or it renders twice. Its dates go on the header row. */
+    if(r.id !== it.id) groups.get(r.id).items.push(it);
   }
   const ordered = [...groups.values()].sort((a,b) => a.root.order - b.root.order);
 
-  let overdue = 0;
+  /* A roadmap phase spans start → due. A task spans planned day → due. Either
+     way, one date means a single moment: a diamond, not a bar. */
+  const spanOf = it => {
+    const anchor = isRoadmap(it) ? it.start : it.day;
+    const ds = [it.due, anchor].filter(Boolean).sort();
+    return ds.length ? {a: ds[0], b: ds[ds.length - 1]} : null;
+  };
+  const sortKey = it => { const s = spanOf(it); return s ? s.a : '9999-99-99'; };
+
+  let overdue = 0, undated = 0;
   for(const g of ordered){
-    g.items.sort((a,b) => a.due.localeCompare(b.due));
+    g.items.sort((a,b) => sortKey(a).localeCompare(sortKey(b)) || a.order - b.order);
 
     /* section row carries a roll-up bar spanning its dated children */
     const srow = el('div', 'rm-row rm-secrow');
@@ -858,35 +918,78 @@ function renderRoadmap(){
     srow.appendChild(slab);
     const strack = trackEl();
     decorate(strack);
-    const lo = g.items[0].due, hi = g.items[g.items.length - 1].due;
-    const roll = el('div', 'rm-roll');
-    const rx0 = clamp(xOf(lo)), rx1 = clamp(xOf(hi)) + DAY_W;
-    roll.style.left = rx0 + 'px';
-    roll.style.width = Math.max(DAY_W, rx1 - rx0) + 'px';
-    roll.title = `${g.root.title || 'Untitled'} — ${shortDate(lo)} to ${shortDate(hi)}`;
-    strack.appendChild(roll);
+    const ownSpan = spanOf(g.root);
+    if(ownSpan){
+      /* The section itself is dated, so it gets a real marker rather than a
+         summary of its children. */
+      const isOver = !g.root.doneAt && ownSpan.b < td;
+      if(isOver) overdue++;
+      const cls = g.root.doneAt ? 'done' : isOver ? 'over' : 'open';
+      if(ownSpan.a !== ownSpan.b){
+        const bar = el('div', 'rm-bar ' + cls);
+        const x0 = clamp(xOf(ownSpan.a)), x1 = clamp(xOf(ownSpan.b)) + DAY_W;
+        bar.style.left = x0 + 'px';
+        bar.style.width = Math.max(DAY_W, x1 - x0) + 'px';
+        bar.title = `${g.root.title} — ${shortDate(ownSpan.a)} to ${shortDate(ownSpan.b)}`;
+        strack.appendChild(bar);
+      } else {
+        const raw = xOf(ownSpan.b);
+        const dia = el('div', 'rm-dia ' + cls + (raw < 0 || raw > W ? ' rm-off' : ''));
+        dia.style.left = clamp(raw) + 'px';
+        dia.title = `${g.root.title} — ${prettyDate(ownSpan.b)}`;
+        strack.appendChild(dia);
+      }
+      slab.addEventListener('click', () => openRoadmapEditor(g.root));
+      slab.classList.add('rm-edit');
+    } else {
+      const spans = g.items.map(spanOf).filter(Boolean);
+      if(spans.length){
+        const lo = spans.map(s => s.a).sort()[0];
+        const hi = spans.map(s => s.b).sort().slice(-1)[0];
+        const roll = el('div', 'rm-roll');
+        const rx0 = clamp(xOf(lo)), rx1 = clamp(xOf(hi)) + DAY_W;
+        roll.style.left = rx0 + 'px';
+        roll.style.width = Math.max(DAY_W, rx1 - rx0) + 'px';
+        roll.title = `${g.root.title || 'Untitled'} — ${shortDate(lo)} to ${shortDate(hi)}`;
+        strack.appendChild(roll);
+      } else if(isRoadmap(g.root)){
+        undated++;
+        slab.classList.add('rm-nodate');
+        slab.addEventListener('click', () => openRoadmapEditor(g.root));
+        slab.classList.add('rm-edit');
+      }
+    }
     srow.appendChild(strack);
     inner.appendChild(srow);
 
     for(const it of g.items){
+      const span = spanOf(it);
       const row = el('div', 'rm-row');
       const anc = ancestorsOf(it.id).slice(1).map(a => a.title || '…').join(' › ');
-      const lab = el('div', 'rm-lab' + (it.doneAt ? ' done' : ''), it.title || 'Untitled');
+      const lab = el('div', 'rm-lab rm-edit' + (it.doneAt ? ' done' : '')
+                     + (span ? '' : ' rm-nodate'), it.title || 'Untitled');
       lab.title = (anc ? anc + ' › ' : '') + (it.title || 'Untitled')
-                + ' — due ' + prettyDate(it.due);
+                + (span ? (span.a === span.b ? ' — ' + prettyDate(span.b)
+                                            : ' — ' + prettyDate(span.a) + ' to ' + prettyDate(span.b))
+                        : ' — no date yet')
+                + '  ·  click to edit';
+      lab.addEventListener('click', () => openRoadmapEditor(it));
       row.appendChild(lab);
 
       const track = trackEl();
       decorate(track);
 
-      const isOver = !it.doneAt && it.due < td;
+      if(!span){
+        undated++;
+        row.appendChild(track);
+        inner.appendChild(row);
+        continue;
+      }
+
+      const isOver = !it.doneAt && span.b < td;
       if(isOver) overdue++;
       const cls = it.doneAt ? 'done' : isOver ? 'over' : 'open';
-
-      /* A scheduled item spans planned day → due, so it draws a bar. A dated
-         item that was never scheduled is a single moment: a diamond. */
-      const a = it.day && it.day < it.due ? it.day : it.due;
-      const b = it.day && it.day > it.due ? it.day : it.due;
+      const a = span.a, b = span.b;
       if(a !== b){
         const bar = el('div', 'rm-bar ' + cls);
         const x0 = clamp(xOf(a)), x1 = clamp(xOf(b)) + DAY_W;
@@ -895,10 +998,10 @@ function renderRoadmap(){
         bar.title = `${it.title} — ${shortDate(a)} to ${shortDate(b)}`;
         track.appendChild(bar);
       } else {
-        const raw = xOf(it.due);
+        const raw = xOf(b);
         const dia = el('div', 'rm-dia ' + cls + (raw < 0 || raw > W ? ' rm-off' : ''));
         dia.style.left = clamp(raw) + 'px';
-        dia.title = `${it.title} — due ${prettyDate(it.due)}`
+        dia.title = `${it.title} — ${prettyDate(b)}`
                   + (raw < 0 || raw > W ? ' (outside the window)' : '');
         track.appendChild(dia);
       }
@@ -911,7 +1014,76 @@ function renderRoadmap(){
   const fromIso = new Date(from * 86400000).toISOString().slice(0, 10);
   const toIso = new Date(to * 86400000).toISOString().slice(0, 10);
   sub.textContent = `${shortDate(fromIso)} → ${shortDate(toIso)} · ${dated.length} dated`
-    + (overdue ? ` · ${overdue} overdue` : '');
+    + (overdue ? ` · ${overdue} overdue` : '')
+    + (undated ? ` · ${undated} still need a date` : '');
+}
+
+/* Roadmap rows are edited in place — the item never appears in the list, so
+   this is the only place its title and dates can be changed. */
+function openRoadmapEditor(it){
+  const scrim = el('div', 'scrim');
+  const m = el('div', 'modal');
+  m.appendChild(el('h3', null, isRoadmap(it) ? 'Roadmap item' : 'Dated task'));
+  const anc = ancestorsOf(it.id).map(a => a.title || '…').join(' › ');
+  if(anc) m.appendChild(el('p', 'lead', anc));
+
+  const grid = el('div', 'medit');
+  const mk = (labelText, type, value) => {
+    grid.appendChild(el('label', null, labelText));
+    const i = el('input');
+    i.type = type;
+    i.value = value || '';
+    grid.appendChild(i);
+    return i;
+  };
+  const title = mk('Title', 'text', it.title);
+  const start = mk(isRoadmap(it) ? 'Start' : 'Planned', 'date', isRoadmap(it) ? it.start : it.day);
+  const due   = mk('Due', 'date', it.due);
+  m.appendChild(grid);
+  m.appendChild(el('p', 'lead',
+    'Both dates draws a bar. Only a due date is a milestone diamond. Neither and it sits at the top waiting for one.'));
+
+  const foot = document.createElement('footer');
+  const save2 = el('button', 'mbtn primary', 'Save');
+  save2.addEventListener('click', () => {
+    it.title = title.value.trim();
+    if(isRoadmap(it)) it.start = start.value || null;
+    else { it.day = start.value || null; it.week = it.day ? isoWeek(new Date(it.day + 'T00:00:00')) : null; }
+    it.due = due.value || null;
+    save(); scrim.remove(); render();
+  });
+  foot.appendChild(save2);
+
+  const move = el('button', 'mbtn', isRoadmap(it) ? 'Move to the list' : 'Move to the roadmap');
+  move.title = isRoadmap(it) ? 'Make this an ordinary task again'
+                             : 'Take this out of the list and keep it on the timeline';
+  move.addEventListener('click', () => {
+    setKind(it.id, isRoadmap(it) ? 'task' : 'roadmap');
+    scrim.remove(); render();
+  });
+  foot.appendChild(move);
+
+  const del = el('button', 'mbtn danger', 'Delete');
+  del.addEventListener('click', async () => {
+    const n = descendantsOf(it.id).length;
+    scrim.remove();
+    const ok = await modalChoice('Delete?',
+      `“${it.title || 'Untitled'}”${n ? ` and its ${n} sub-item${n>1?'s':''}` : ''} will be gone for good.`,
+      [{id:'yes', label:'Delete', cls:'danger'}, {id:'no', label:'Keep it', cls:'primary'}]);
+    if(ok === 'yes'){ removeItem(it.id); render(); }
+  });
+  foot.appendChild(del);
+
+  const close = el('button', 'mbtn', 'Cancel');
+  close.addEventListener('click', () => scrim.remove());
+  foot.appendChild(close);
+
+  m.appendChild(foot);
+  scrim.appendChild(m);
+  scrim.addEventListener('click', e => { if(e.target === scrim) scrim.remove(); });
+  document.body.appendChild(scrim);
+  title.focus();
+  title.select();
 }
 
 function renderHistory(){
@@ -1341,7 +1513,7 @@ document.getElementById('fileInput').addEventListener('change', async e => {
      {id:'cancel', label:'Cancel'}]);
 
   if(ok === 'merge'){
-    const r = mergeItems(parsed.items);
+    const r = mergeItems(parsed.items, {replaceSections: parsed.replaceSections});
     render();
     if(r.allDone){
       document.getElementById('histDetails').open = true;
@@ -1366,8 +1538,22 @@ document.getElementById('fileInput').addEventListener('change', async e => {
 /* Add incoming items alongside what is already here.
    An incoming top-level item whose title matches an existing section is not
    duplicated — its children are hung under the section you already have. */
-function mergeItems(incoming){
+function mergeItems(incoming, opts){
+  opts = opts || {};
   const norm = s => (s || '').trim().toLowerCase();
+
+  /* An incoming batch may ask to replace a section outright, which is how a
+     wrong batch gets corrected — merging alone can only ever add. Destructive
+     by design, so the count is reported back and shown. */
+  let removed = 0;
+  for(const t of (opts.replaceSections || [])){
+    const sec = S.items.find(x => !x.parentId && norm(x.title) === norm(t));
+    if(!sec) continue;
+    const kill = new Set([sec.id, ...descendantsOf(sec.id).map(d => d.id)]);
+    removed += kill.size;
+    S.items = S.items.filter(i => !kill.has(i.id));
+  }
+
   const items = incoming.map(normalise);
   const newIds = new Map();
   items.forEach(i => newIds.set(i.id, uid()));
@@ -1400,7 +1586,7 @@ function mergeItems(incoming){
   [...new Set(S.items.map(x => x.parentId))].forEach(renumber);
   save();
   return {
-    added,
+    added, removed,
     adopted: adoptedTitles.length,
     adoptedTitles,
     allDone: added > 0 && items.every(i => i.doneAt || rootIds.has(i.id))
@@ -1480,7 +1666,7 @@ async function checkInbox(){
 
     const envs = Array.isArray(data && data.envelopes) ? data.envelopes : [];
     const seen = S.meta.inboxSeen || (S.meta.inboxSeen = []);
-    let added = 0;
+    let added = 0, dropped = 0;
     const sections = new Set();
 
     for(const env of envs){
@@ -1490,8 +1676,9 @@ async function checkInbox(){
          unseen rather than burning it — a restored key should still find it. */
       try { payload = await openEnvelope(env); } catch(e){ continue; }
       if(!payload || !Array.isArray(payload.items)){ seen.push(env.id); continue; }
-      const r = mergeItems(payload.items);
+      const r = mergeItems(payload.items, {replaceSections: payload.replaceSections});
       added += r.added;
+      dropped += r.removed;
       r.adoptedTitles.forEach(t => sections.add(t));
       seen.push(env.id);
     }
@@ -1502,6 +1689,7 @@ async function checkInbox(){
       const anyDone = S.items.some(i => i.doneAt);
       if(anyDone) document.getElementById('histDetails').open = true;
       banner(`<b>${added} item${added===1?'':'s'} arrived.</b>`
+        + (dropped ? ` Replaced ${dropped} earlier item${dropped===1?'':'s'}.` : '')
         + (sections.size ? ` Filed under “${[...sections].join('”, “')}”.` : '')
         + (anyDone ? ' Anything already finished is in History.' : ''));
     } else if(S.meta.inboxSeen){ save(); }
