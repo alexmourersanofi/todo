@@ -771,7 +771,9 @@ function renderToday(){
 /* ============================================================
    Roadmap — a timeline of due dates below the lists
    ============================================================ */
-const DAY_W = 13;          // px per day
+const DAY_W_MAX = 13;      // px per day when the span is short
+const DAY_W_MIN = 3;        // ...and when it runs to years
+const RM_TARGET_W = 3000;   // aim for roughly this much canvas
 const RM_LABEL = 220;      // px, matches .rm-lab
 
 const dayNum = iso => Math.round(new Date(iso + 'T00:00:00') / 86400000);
@@ -792,11 +794,12 @@ function roadmapWindow(dated){
   const yearEnd = dayNum(new Date(td + 'T00:00:00').getFullYear() + '-12-31');
   let to = Math.max(yearEnd, t + 56);
 
-  /* Reach forward for a later due date, but never past 40 weeks total — one
-     item three years out should not turn this into a mile of scrolling. Those
-     get clamped to the edge and flagged instead. */
+  /* Reach forward to cover the real data — a portfolio roadmap genuinely runs
+     to 2028 — out to a five-year limit. The day width shrinks to compensate
+     rather than the timeline growing without bound. Beyond five years an item
+     is clamped to the edge and flagged. */
   const latest = dues.length ? Math.max(...dues) : to;
-  if(latest > to) to = Math.min(latest + 7, from + 279);
+  if(latest > to) to = Math.min(latest + 14, t + 1826);
   return {from, to};
 }
 
@@ -818,6 +821,7 @@ function renderRoadmap(){
 
   const {from, to} = roadmapWindow(dated);
   const days = to - from + 1;
+  const DAY_W = Math.max(DAY_W_MIN, Math.min(DAY_W_MAX, Math.round(RM_TARGET_W / days)));
   const W = days * DAY_W;
   const td = todayStr();
   const xOf = iso => (dayNum(iso) - from) * DAY_W;
@@ -1013,7 +1017,11 @@ function renderRoadmap(){
   host.appendChild(inner);
   const fromIso = new Date(from * 86400000).toISOString().slice(0, 10);
   const toIso = new Date(to * 86400000).toISOString().slice(0, 10);
-  sub.textContent = `${shortDate(fromIso)} → ${shortDate(toIso)} · ${dated.length} dated`
+  /* Years matter here — a portfolio window spans 2026 to 2029, and "11 Aug →
+     14 Jan" says nothing. */
+  const withYear = iso => new Date(iso + 'T00:00:00')
+    .toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'});
+  sub.textContent = `${withYear(fromIso)} → ${withYear(toIso)} · ${dated.length} dated`
     + (overdue ? ` · ${overdue} overdue` : '')
     + (undated ? ` · ${undated} still need a date` : '');
 }
